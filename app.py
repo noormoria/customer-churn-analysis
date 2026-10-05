@@ -9,6 +9,7 @@ import pandas as pd
 import joblib
 import html
 import textwrap
+import matplotlib.pyplot as plt
 
 
 # ============================================================
@@ -75,75 +76,226 @@ def get_badge_class(level):
     }.get(level, "low")
 
 
-def get_decision_summary(level):
-
+def get_risk_explanation(level, score):
+    """Explain what the model-estimated churn level means."""
     if level == "Critical":
         return (
-            "Immediate retention attention recommended",
-            "This customer is in the highest retention priority group. "
-            "Consider a proactive retention response."
+            f"A churn probability of {score:.0f}% places this customer in the critical-risk range. "
+            "The customer requires immediate retention attention because the model estimates a very high likelihood of churn."
         )
-
     if level == "High":
         return (
-            "High retention priority",
-            "This customer shows elevated retention priority. "
-            "Review the customer signals and consider proactive action."
+            f"A churn probability of {score:.0f}% places this customer in the high-risk range. "
+            "The customer shows a strong likelihood of churn and should be reviewed proactively."
         )
-
     if level == "Medium":
         return (
+            f"A churn probability of {score:.0f}% places this customer in the medium-risk range. "
+            "The customer is not currently critical, but the account should be monitored for increasing risk."
+        )
+    return (
+        f"A churn probability of {score:.0f}% places this customer in the low-risk range. "
+        "The model currently estimates a relatively low likelihood of churn."
+    )
+
+
+def get_decision_summary(priority_level, risk_level, churn_risk):
+    if priority_level == "Critical":
+        return (
+            "Immediate retention attention recommended",
+            f"This customer has {risk_level.lower()} churn risk ({churn_risk:.0f}%) and falls in the highest "
+            "retention-priority group. Review the strongest customer signals and begin targeted retention action promptly."
+        )
+
+    if priority_level == "High":
+        return (
+            "High retention priority",
+            f"This customer has {risk_level.lower()} churn risk ({churn_risk:.0f}%) and should receive proactive "
+            "retention attention. Address the most relevant account signals before risk increases."
+        )
+
+    if priority_level == "Medium":
+        return (
             "Moderate retention priority",
-            "This customer currently shows moderate retention priority. "
-            "Continued monitoring and engagement may be appropriate."
+            f"This customer currently has {risk_level.lower()} churn risk ({churn_risk:.0f}%). "
+            "Monitor the account and use targeted engagement where appropriate."
         )
 
     return (
         "Low retention priority",
-        "This customer currently ranks in the lower retention priority group. "
-        "No immediate targeted retention action is indicated."
+        f"This customer currently has {risk_level.lower()} churn risk ({churn_risk:.0f}%). "
+        "Maintain normal engagement and continue monitoring for meaningful changes."
     )
 
 
-def get_risk_factors(tenure, contract, payment_method):
-
-    factors = []
+def get_factor_action_pairs(
+    tenure,
+    contract,
+    payment_method,
+    paperless_billing,
+    monthly_charges,
+    total_charges,
+    churn_risk,
+    business_impact,
+):
+    """
+    Return reviewable customer signals and a practical action for each signal.
+    These are rule-based decision-support recommendations, not causal claims.
+    """
+    pairs = []
 
     if contract == "Month-to-month":
-        factors.append("Short-term monthly contract")
+        pairs.append((
+            "Month-to-month contract",
+            "The customer has a flexible contract and can leave without a long commitment.",
+            "Consider offering a suitable incentive for a longer-term contract."
+        ))
 
     if payment_method == "Electronic check":
-        factors.append("Manual electronic payment method")
+        pairs.append((
+            "Electronic check payment",
+            "The customer uses a manual electronic payment method.",
+            "Offer an automatic payment option if it is suitable for the customer."
+        ))
 
     if tenure < 12:
-        factors.append("Customer relationship is less than one year")
+        pairs.append((
+            "Short customer tenure",
+            f"The customer has been with the company for only {tenure} month(s).",
+            "Strengthen onboarding, early engagement, and first-year retention support."
+        ))
+    elif tenure < 24:
+        pairs.append((
+            "Developing customer relationship",
+            f"The customer has been with the company for {tenure} months.",
+            "Use a proactive check-in to strengthen the customer relationship."
+        ))
 
-    return factors
+    # Monthly charges are used carefully: we describe the entered amount,
+    # without claiming it caused churn.
+    if monthly_charges >= 80:
+        pairs.append((
+            "High monthly payment amount",
+            f"The customer currently pays ${monthly_charges:,.2f} per month.",
+            "Review the current plan, service fit, and any eligible retention offers."
+        ))
+    elif monthly_charges >= 60:
+        pairs.append((
+            "Moderate-to-high monthly payment amount",
+            f"The customer currently pays ${monthly_charges:,.2f} per month.",
+            "Confirm that the current plan still matches the customer's needs and perceived value."
+        ))
+
+    if paperless_billing == "Yes":
+        pairs.append((
+            "Paperless billing",
+            "The customer receives bills digitally.",
+            "Use digital channels for timely, personalized retention communication."
+        ))
+
+    if business_impact >= 75:
+        pairs.append((
+            "High relative customer value",
+            f"The customer's relative business-impact score is {business_impact:.0f}/100.",
+            "Prioritize a personalized response that reflects the customer's relative value."
+        ))
+    elif business_impact >= 50:
+        pairs.append((
+            "Meaningful relative customer value",
+            f"The customer's relative business-impact score is {business_impact:.0f}/100.",
+            "Consider the customer's value when selecting the retention response."
+        ))
+
+    if churn_risk >= 75:
+        pairs.insert(0, (
+            "Critical model-estimated churn risk",
+            f"The model estimates a {churn_risk:.0f}% probability of churn.",
+            "Begin retention outreach promptly and review the account before other lower-risk cases."
+        ))
+    elif churn_risk >= 50:
+        pairs.insert(0, (
+            "Elevated model-estimated churn risk",
+            f"The model estimates a {churn_risk:.0f}% probability of churn.",
+            "Proactively review the account and contact the customer when appropriate."
+        ))
+    elif churn_risk >= 30:
+        pairs.insert(0, (
+            "Moderate model-estimated churn risk",
+            f"The model estimates a {churn_risk:.0f}% probability of churn.",
+            "Monitor the account and watch for additional risk signals."
+        ))
+
+    if not pairs:
+        pairs.append((
+            "No major rule-based warning signal",
+            "The entered customer profile does not trigger the main review rules used by this prototype.",
+            "Maintain normal engagement and continue monitoring the model-estimated churn risk."
+        ))
+
+    return pairs
 
 
-def get_recommended_actions(tenure, contract, payment_method):
-
+def get_recommended_actions(factor_action_pairs, priority_level):
+    """Create a larger, ordered action plan from the customer-specific signals."""
     actions = []
 
-    if contract == "Month-to-month":
-        actions.append(
-            "Consider offering an incentive for a longer-term contract"
-        )
+    if priority_level == "Critical":
+        actions.extend([
+            ("Immediate", "Contact the customer promptly for a retention-focused conversation."),
+            ("Immediate", "Review recent interactions, complaints, or service concerns before outreach."),
+        ])
+    elif priority_level == "High":
+        actions.extend([
+            ("Immediate", "Proactively contact the customer and review current needs or concerns."),
+        ])
+    elif priority_level == "Medium":
+        actions.extend([
+            ("Priority", "Schedule a proactive customer check-in and continue monitoring risk."),
+        ])
+    else:
+        actions.extend([
+            ("Maintain", "Maintain regular engagement and continue monitoring retention risk."),
+        ])
 
-    if payment_method == "Electronic check":
-        actions.append(
-            "Encourage the customer to use an automatic payment method"
-        )
+    # Add customer-specific actions.
+    for _, _, action in factor_action_pairs:
+        if action not in [a[1] for a in actions]:
+            actions.append(("Targeted", action))
 
-    if tenure < 12:
-        actions.append(
-            "Increase engagement during the customer's first year"
-        )
+    # Add follow-up for customers needing attention.
+    if priority_level in ("Critical", "High"):
+        actions.append((
+            "Follow-up",
+            "Reassess the customer after the retention action to determine whether further intervention is needed."
+        ))
+    elif priority_level == "Medium":
+        actions.append((
+            "Follow-up",
+            "Reassess the account if the customer's profile or model-estimated risk changes."
+        ))
 
+    # Remove accidental duplicates while preserving order.
+    unique = []
+    seen = set()
+    for label, action in actions:
+        if action not in seen:
+            unique.append((label, action))
+            seen.add(action)
+
+    return unique
+
+
+def get_next_step(priority_level, actions):
     if not actions:
-        actions.append("Continue regular customer engagement")
+        return "Continue monitoring the customer."
 
-    return actions
+    first_action = actions[0][1]
+
+    if priority_level in ("Critical", "High"):
+        return f"Next step: {first_action}"
+    if priority_level == "Medium":
+        return f"Next step: {first_action}"
+    return "Next step: Maintain normal engagement and monitor for meaningful changes."
 
 
 # ============================================================
@@ -1518,22 +1670,36 @@ elif st.session_state.page == "form":
                 )
 
 
-                risk_factors = get_risk_factors(
-                    tenure,
-                    contract,
-                    payment_method
+                factor_action_pairs = get_factor_action_pairs(
+                    tenure=tenure,
+                    contract=contract,
+                    payment_method=payment_method,
+                    paperless_billing=billing_value,
+                    monthly_charges=monthly_charges,
+                    total_charges=total_charges,
+                    churn_risk=churn_risk,
+                    business_impact=business_impact_display,
                 )
 
                 actions = get_recommended_actions(
-                    tenure,
-                    contract,
-                    payment_method
+                    factor_action_pairs,
+                    priority_level
                 )
 
-                decision_title, decision_text = (
-                    get_decision_summary(
-                        priority_level
-                    )
+                risk_explanation = get_risk_explanation(
+                    risk_level,
+                    churn_risk
+                )
+
+                decision_title, decision_text = get_decision_summary(
+                    priority_level,
+                    risk_level,
+                    churn_risk
+                )
+
+                next_step = get_next_step(
+                    priority_level,
+                    actions
                 )
 
 
@@ -1543,10 +1709,20 @@ elif st.session_state.page == "form":
                     "business_impact": business_impact_display,
                     "retention_priority": retention_priority_display,
                     "priority_level": priority_level,
-                    "risk_factors": risk_factors,
+                    "factor_action_pairs": factor_action_pairs,
                     "actions": actions,
+                    "risk_explanation": risk_explanation,
                     "decision_title": decision_title,
-                    "decision_text": decision_text
+                    "decision_text": decision_text,
+                    "next_step": next_step,
+                    "customer_inputs": {
+                        "tenure": tenure,
+                        "contract": contract,
+                        "payment_method": payment_method,
+                        "paperless_billing": billing_value,
+                        "monthly_charges": monthly_charges,
+                        "total_charges": total_charges,
+                    }
                 }
 
 
@@ -1599,21 +1775,13 @@ elif st.session_state.page == "results":
         "priority_level"
     ]
 
-    risk_factors = result[
-        "risk_factors"
-    ]
-
-    actions = result[
-        "actions"
-    ]
-
-    decision_title = result[
-        "decision_title"
-    ]
-
-    decision_text = result[
-        "decision_text"
-    ]
+    factor_action_pairs = result["factor_action_pairs"]
+    actions = result["actions"]
+    risk_explanation = result["risk_explanation"]
+    decision_title = result["decision_title"]
+    decision_text = result["decision_text"]
+    next_step = result["next_step"]
+    customer_inputs = result["customer_inputs"]
 
 
     render_html("""
@@ -1690,195 +1858,181 @@ elif st.session_state.page == "results":
 
     with result_col:
 
-        c1, c2, c3 = st.columns(
-            3,
-            gap="medium"
-        )
+        # ----------------------------------------------------
+        # TOP METRICS
+        # ----------------------------------------------------
 
+        c1, c2, c3 = st.columns(3, gap="medium")
 
-        # PRIORITY
         with c1:
-
-            badge = get_badge_class(
-                priority_level
-            )
-
+            badge = get_badge_class(priority_level)
             render_html(f"""
             <div class="metric-grid-card">
-
                 <div class="metric-top">
-
                     <div class="metric-heading">
-
-                        <div class="metric-icon">
-                            ◎
-                        </div>
-
-                        <div class="metric-label">
-                            Retention Priority Score
-                        </div>
-
+                        <div class="metric-icon">◎</div>
+                        <div class="metric-label">Retention Priority Score</div>
                     </div>
-
                     <span class="badge badge-{badge}">
                         {html.escape(priority_level)}
                     </span>
-
                 </div>
 
                 <div class="metric-value">
-
-                    {retention_priority:.2f}
-
-                    <span class="metric-unit">
-                        / 100
-                    </span>
-
+                    {retention_priority:.0f}
+                    <span class="metric-unit">/ 100</span>
                 </div>
 
                 <div class="progress-track">
-
-                    <div
-                        class="progress-fill"
-                        style="width:{retention_priority}%">
-                    </div>
-
+                    <div class="progress-fill"
+                         style="width:{retention_priority}%"></div>
                 </div>
 
                 <div class="metric-note">
-
-                    Indicates how strongly this customer
-                    should be prioritized for retention.
-
+                    Indicates how strongly this customer should be prioritized
+                    for retention within this prototype.
                 </div>
-
             </div>
             """)
 
-
-        # CHURN
         with c2:
-
-            badge = get_badge_class(
-                risk_level
-            )
-
+            badge = get_badge_class(risk_level)
             render_html(f"""
             <div class="metric-grid-card">
-
                 <div class="metric-top">
-
                     <div class="metric-heading">
-
-                        <div class="metric-icon">
-                            ◇
-                        </div>
-
-                        <div class="metric-label">
-                            Estimated Churn Risk
-                        </div>
-
+                        <div class="metric-icon">◇</div>
+                        <div class="metric-label">Estimated Churn Risk</div>
                     </div>
-
                     <span class="badge badge-{badge}">
                         {html.escape(risk_level)}
                     </span>
-
                 </div>
 
-                <div class="metric-value">
-                    {churn_risk:.2f}%
-                </div>
+                <div class="metric-value">{churn_risk:.0f}%</div>
 
                 <div class="progress-track">
-
-                    <div
-                        class="progress-fill"
-                        style="width:{churn_risk}%">
-                    </div>
-
+                    <div class="progress-fill"
+                         style="width:{churn_risk}%"></div>
                 </div>
 
                 <div class="metric-note">
-
-                    Model-estimated likelihood of the
-                    customer leaving.
-
+                    Model-estimated probability that this customer may leave.
                 </div>
-
             </div>
             """)
 
-
-        # IMPACT
         with c3:
-
             render_html(f"""
             <div class="metric-grid-card">
-
                 <div class="metric-top">
-
                     <div class="metric-heading">
-
-                        <div class="metric-icon">
-                            ◉
-                        </div>
-
-                        <div class="metric-label">
-                            Customer Business Impact
-                        </div>
-
+                        <div class="metric-icon">◉</div>
+                        <div class="metric-label">Customer Business Impact</div>
                     </div>
-
                 </div>
 
                 <div class="metric-value">
-
-                    {business_impact:.2f}
-
-                    <span class="metric-unit">
-                        / 100
-                    </span>
-
+                    {business_impact:.0f}
+                    <span class="metric-unit">/ 100</span>
                 </div>
 
                 <div class="progress-track">
-
-                    <div
-                        class="progress-fill"
-                        style="width:{business_impact}%">
-                    </div>
-
+                    <div class="progress-fill"
+                         style="width:{business_impact}%"></div>
                 </div>
 
                 <div class="metric-note">
-
-                    Relative customer value based on
-                    monthly and total payments.
-
+                    Relative customer value based on monthly and total payments.
                 </div>
-
             </div>
             """)
 
+        # ----------------------------------------------------
+        # RISK VISUALIZATION
+        # ----------------------------------------------------
+
+        render_html("""
+        <div style="margin-top:24px;">
+            <div class="page-kicker">Risk Visualization</div>
+            <div class="detail-title">Customer churn risk at a glance</div>
+            <div class="detail-copy">
+                The marker shows the customer's model-estimated churn probability
+                across the four risk ranges used by NAVIGATE.
+            </div>
+        </div>
+        """)
+
+        fig, ax = plt.subplots(figsize=(9, 1.8))
+        ax.barh(
+            ["Churn Risk"],
+            [100],
+            height=0.34,
+            alpha=0.16
+        )
+        ax.barh(
+            ["Churn Risk"],
+            [churn_risk],
+            height=0.34
+        )
+        ax.axvline(30, linewidth=1, linestyle="--", alpha=0.45)
+        ax.axvline(50, linewidth=1, linestyle="--", alpha=0.45)
+        ax.axvline(75, linewidth=1, linestyle="--", alpha=0.45)
+        ax.scatter([churn_risk], [0], s=90, zorder=5)
+        ax.text(
+            churn_risk,
+            0.23,
+            f"{churn_risk:.0f}% · {risk_level}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+            fontweight="bold"
+        )
+        ax.set_xlim(0, 100)
+        ax.set_xlabel("Estimated churn probability (%)")
+        ax.set_xticks([0, 30, 50, 75, 100])
+        ax.set_yticks([])
+        for spine in ["top", "right", "left"]:
+            ax.spines[spine].set_visible(False)
+        fig.tight_layout()
+        st.pyplot(fig, use_container_width=True)
+        plt.close(fig)
 
         # ----------------------------------------------------
-        # DECISION
+        # WHY THIS RESULT IS IMPORTANT
+        # ----------------------------------------------------
+
+        risk_badge = get_badge_class(risk_level)
+
+        render_html(f"""
+        <div class="decision-card">
+            <div class="decision-head">
+                <div class="decision-icon">!</div>
+                <div>
+                    <div class="decision-label">What this result means</div>
+                    <div class="decision-title">
+                        <span class="badge badge-{risk_badge}">
+                            {html.escape(risk_level)} Risk
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="decision-text" style="margin-top:13px;">
+                {html.escape(risk_explanation)}
+            </div>
+        </div>
+        """)
+
+        # ----------------------------------------------------
+        # DECISION SUMMARY
         # ----------------------------------------------------
 
         render_html(f"""
         <div class="decision-card">
-
             <div class="decision-head">
-
-                <div class="decision-icon">
-                    ◇
-                </div>
-
-                <div class="decision-label">
-                    Decision Summary
-                </div>
-
+                <div class="decision-icon">◇</div>
+                <div class="decision-label">Decision Summary</div>
             </div>
 
             <div class="decision-title">
@@ -1888,152 +2042,154 @@ elif st.session_state.page == "results":
             <div class="decision-text">
                 {html.escape(decision_text)}
             </div>
-
         </div>
         """)
 
-
-        st.write("")
-
-
-        factor_col, action_col = st.columns(
-            [1, 1.35],
-            gap="medium"
-        )
-
-
         # ----------------------------------------------------
-        # FACTORS
+        # FACTOR -> ACTION CONNECTIONS
         # ----------------------------------------------------
 
-        with factor_col:
+        render_html("""
+        <div style="margin-top:25px;">
+            <div class="page-kicker">Customer Signals</div>
+            <div class="detail-title">Why this customer needs this response</div>
+            <div class="detail-copy">
+                Each signal below is paired with a practical action.
+                These signals support review and do not prove that a single
+                characteristic caused the model prediction.
+            </div>
+        </div>
+        """)
 
-            if risk_factors:
+        pair_html = ""
 
-                factor_html = ""
+        for index, (factor, context, action) in enumerate(
+            factor_action_pairs,
+            start=1
+        ):
+            pair_html += f"""
+            <div style="
+                background:rgba(255,255,255,.75);
+                border:1px solid rgba(225,182,191,.62);
+                border-radius:18px;
+                padding:18px 20px;
+                margin-bottom:12px;
+            ">
+                <div style="
+                    display:flex;
+                    align-items:flex-start;
+                    gap:12px;
+                ">
+                    <div class="action-number">{index:02d}</div>
 
-                for factor in risk_factors:
-
-                    factor_html += f"""
-                    <div class="risk-item">
-
-                        <div class="risk-dot"></div>
-
-                        <div>
+                    <div style="flex:1;">
+                        <div style="
+                            color:#79172b;
+                            font-size:.82rem;
+                            font-weight:850;
+                            margin-bottom:5px;
+                        ">
                             {html.escape(factor)}
                         </div>
 
+                        <div style="
+                            color:#956f77;
+                            font-size:.69rem;
+                            line-height:1.55;
+                            margin-bottom:9px;
+                        ">
+                            {html.escape(context)}
+                        </div>
+
+                        <div style="
+                            color:#7f4551;
+                            font-size:.72rem;
+                            line-height:1.55;
+                        ">
+                            <strong>Recommended response:</strong>
+                            {html.escape(action)}
+                        </div>
                     </div>
-                    """
-
-            else:
-
-                factor_html = """
-                <div class="risk-item">
-
-                    <div class="risk-dot"></div>
-
-                    <div>
-                        No major actionable customer
-                        signals identified
-                    </div>
-
                 </div>
-                """
-
-
-            render_html(f"""
-            <div class="detail-card">
-
-                <div class="detail-header">
-
-                    <div class="detail-icon">
-                        ▣
-                    </div>
-
-                    <div class="detail-title">
-                        Factors to Review
-                    </div>
-
-                </div>
-
-                <div class="detail-copy">
-
-                    Customer characteristics that may
-                    be useful when reviewing retention risk.
-
-                </div>
-
-                {factor_html}
-
             </div>
-            """)
+            """
 
+        render_html(pair_html)
 
         # ----------------------------------------------------
-        # ACTIONS
+        # ORDERED ACTION PLAN
         # ----------------------------------------------------
 
-        with action_col:
+        action_html = ""
 
-            action_html = ""
+        for i, (label, action) in enumerate(actions, start=1):
+            action_html += f"""
+            <div class="action-item">
+                <div class="action-number">{i:02d}</div>
 
-            for i, action in enumerate(
-                actions,
-                start=1
-            ):
-
-                action_html += f"""
-                <div class="action-item">
-
-                    <div class="action-number">
-                        {i:02d}
+                <div class="action-text">
+                    <div style="
+                        color:#a24a5b;
+                        font-size:.60rem;
+                        font-weight:850;
+                        letter-spacing:.08em;
+                        text-transform:uppercase;
+                        margin-bottom:3px;
+                    ">
+                        {html.escape(label)}
                     </div>
 
-                    <div class="action-text">
-                        {html.escape(action)}
-                    </div>
-
+                    {html.escape(action)}
                 </div>
-                """
-
-
-            render_html(f"""
-            <div class="detail-card">
-
-                <div class="detail-header">
-
-                    <div class="detail-icon">
-                        ◎
-                    </div>
-
-                    <div class="detail-title">
-                        Suggested Actions
-                    </div>
-
-                </div>
-
-                <div class="detail-copy">
-
-                    Suggested actions based on the
-                    customer information entered.
-
-                </div>
-
-                {action_html}
-
             </div>
-            """)
+            """
 
+        render_html(f"""
+        <div class="detail-card" style="margin-top:24px; min-height:0;">
+            <div class="detail-header">
+                <div class="detail-icon">◎</div>
+                <div class="detail-title">Recommended Action Plan</div>
+            </div>
+
+            <div class="detail-copy">
+                Actions are ordered to make the recommended response easier
+                to follow. Customer-specific actions are based on the
+                information entered in this analysis.
+            </div>
+
+            {action_html}
+        </div>
+        """)
+
+        # ----------------------------------------------------
+        # NEXT STEP
+        # ----------------------------------------------------
+
+        render_html(f"""
+        <div class="decision-card">
+            <div class="decision-head">
+                <div class="decision-icon">→</div>
+                <div class="decision-label">Recommended Next Step</div>
+            </div>
+
+            <div class="decision-title">
+                {html.escape(next_step)}
+            </div>
+        </div>
+        """)
+
+        # ----------------------------------------------------
+        # MODEL / PROTOTYPE NOTE
+        # ----------------------------------------------------
 
         render_html("""
         <div class="note">
-
-            NAVIGATE is a decision-support prototype.
-            Scores are based on the trained model and project
-            scoring assumptions. Suggested actions are
-            rule-based recommendations and do not guarantee
-            a specific customer outcome.
-
+            NAVIGATE is a decision-support prototype. Churn risk is a
+            model-estimated probability, not a guaranteed customer outcome.
+            Business impact and retention priority use project scoring
+            assumptions. Suggested actions are rule-based recommendations
+            derived from the customer information entered and should not be
+            interpreted as causal effects.
         </div>
         """)
+
