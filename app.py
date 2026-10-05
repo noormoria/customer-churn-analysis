@@ -2437,23 +2437,6 @@ elif st.session_state.page == "results":
         st.rerun()
 
 
-    # --------------------------------------------------------
-    # HOME BUTTON - RESULTS PAGE ONLY
-    # --------------------------------------------------------
-
-    home_col, empty_col = st.columns([1, 6])
-
-    with home_col:
-
-        if st.button(
-            "⌂  Home",
-            use_container_width=True,
-            key="results_home_button"
-        ):
-            st.session_state.page = "home"
-            st.session_state.analysis_result = None
-            st.rerun()
-
 
     result = st.session_state.analysis_result
 
