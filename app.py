@@ -298,6 +298,53 @@ def get_next_step(priority_level, actions):
     return "Next step: Maintain normal engagement and monitor for meaningful changes."
 
 
+def get_result_interpretation(risk_level, churn_risk, factor_action_pairs):
+    """Create a concise executive interpretation without claiming causality."""
+    factor_names = [
+        factor for factor, _, _ in factor_action_pairs
+        if "model-estimated churn risk" not in factor.lower()
+        and "customer value" not in factor.lower()
+        and "paperless billing" not in factor.lower()
+    ]
+    shown = factor_names[:2]
+
+    if shown:
+        signal_text = " Review signals include " + " and ".join(shown) + "."
+    else:
+        signal_text = " No additional major rule-based warning signal was triggered by the entered profile."
+
+    if risk_level == "Critical":
+        result = f"Critical Churn Risk — {churn_risk:.0f}%"
+        why = (
+            "The model estimates a very high likelihood of churn, so this account requires prompt retention attention."
+            + signal_text
+        )
+        action = "Prioritize retention outreach, review the customer's current needs, and apply the most relevant targeted retention actions."
+    elif risk_level == "High":
+        result = f"High Churn Risk — {churn_risk:.0f}%"
+        why = (
+            "The model estimates an elevated likelihood of churn, making proactive review important before the risk increases."
+            + signal_text
+        )
+        action = "Contact the customer proactively, review the strongest account signals, and select a targeted retention response."
+    elif risk_level == "Medium":
+        result = f"Medium Churn Risk — {churn_risk:.0f}%"
+        why = (
+            "The customer is not in the highest-risk range, but the model indicates enough churn risk to justify monitoring and targeted engagement."
+            + signal_text
+        )
+        action = "Monitor the account, use a proactive check-in where appropriate, and reassess if the customer profile changes."
+    else:
+        result = f"Low Churn Risk — {churn_risk:.0f}%"
+        why = (
+            "The model currently estimates a relatively low likelihood of churn, so urgent retention intervention is not indicated."
+            + signal_text
+        )
+        action = "Maintain normal engagement and continue monitoring for meaningful changes."
+
+    return result, why, action
+
+
 # ============================================================
 # CSS
 # ============================================================
@@ -1132,6 +1179,31 @@ div[data-testid="stAlert"] {
 }
 
 
+/* ---------- ANALYTICS CHARTS ---------- */
+
+.chart-card {
+    background:rgba(255,255,255,.76);
+    border:1px solid rgba(224,180,190,.62);
+    border-radius:20px;
+    padding:20px 22px 14px;
+    box-shadow:0 15px 42px rgba(118,29,49,.07);
+    margin-top:10px;
+}
+
+.chart-title {
+    color:#79172b;
+    font-size:.84rem;
+    font-weight:850;
+    margin-bottom:2px;
+}
+
+.chart-subtitle {
+    color:#9b757d;
+    font-size:.65rem;
+    line-height:1.5;
+    margin-bottom:8px;
+}
+
 /* ---------- MOBILE ---------- */
 
 @media(max-width:900px){
@@ -1238,65 +1310,49 @@ if st.session_state.page == "home":
             <div class="orb orb-one"></div>
             <div class="orb orb-two"></div>
 
-            <div class="visual-card">
+            <div class="visual-card" style="transform:rotate(2deg);">
 
-                <div style="
-                    color:#861b32;
-                    font-weight:800;
-                    font-size:.85rem;
-                ">
-                    Customer Insights
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;">
+                    <div>
+                        <div style="color:#861b32;font-weight:850;font-size:.88rem;">Customer Analytics</div>
+                        <div style="color:#b57b87;font-size:.61rem;margin-top:3px;">From customer data to retention decisions</div>
+                    </div>
+                    <div style="width:39px;height:39px;border-radius:13px;background:linear-gradient(145deg,#f8d8e0,#ffffff);border:1px solid #efcbd4;display:flex;align-items:center;justify-content:center;color:#a91e3e;font-size:17px;font-weight:900;">N</div>
                 </div>
 
-                <div class="visual-mini">
+                <div style="background:rgba(255,255,255,.66);border:1px solid rgba(229,186,196,.72);border-radius:18px;padding:20px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:17px;">
+                        <div style="color:#8a3246;font-size:.66rem;font-weight:800;">Retention Intelligence</div>
+                        <div style="color:#b7828d;font-size:.56rem;">ANALYSIS</div>
+                    </div>
 
-                    <div class="visual-row">
+                    <div style="height:105px;display:flex;align-items:flex-end;gap:11px;padding:0 7px 10px;border-bottom:1px solid #efd7dc;">
+                        <div style="flex:1;height:38%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#ed9daf,#f5c7d1);"></div>
+                        <div style="flex:1;height:58%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#dc6f89,#efa9b9);"></div>
+                        <div style="flex:1;height:47%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#e58ca1,#f3bbc7);"></div>
+                        <div style="flex:1;height:78%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#b92b4c,#df7189);"></div>
+                        <div style="flex:1;height:66%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#ca4765,#e98fa3);"></div>
+                        <div style="flex:1;height:90%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#8d1731,#c93b5b);"></div>
+                    </div>
 
-                        <div class="visual-icon">
-                            ◉
+                    <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:7px;margin-top:17px;">
+                        <div style="text-align:center;">
+                            <div style="color:#a22643;font-size:.75rem;font-weight:850;">◉</div>
+                            <div style="color:#8f5965;font-size:.57rem;font-weight:750;margin-top:4px;">Customer Data</div>
                         </div>
-
-                        <div class="fake-lines">
-                            <div class="fake-line"></div>
-                            <div class="fake-line small"></div>
+                        <div style="color:#d28a9a;font-size:.8rem;">→</div>
+                        <div style="text-align:center;">
+                            <div style="color:#a22643;font-size:.75rem;font-weight:850;">◇</div>
+                            <div style="color:#8f5965;font-size:.57rem;font-weight:750;margin-top:4px;">Risk Analysis</div>
                         </div>
-
+                        <div style="color:#d28a9a;font-size:.8rem;">→</div>
+                        <div style="text-align:center;">
+                            <div style="color:#a22643;font-size:.75rem;font-weight:850;">◎</div>
+                            <div style="color:#8f5965;font-size:.57rem;font-weight:750;margin-top:4px;">Retention</div>
+                        </div>
                     </div>
-
                 </div>
-
-                <div style="
-                    display:flex;
-                    gap:10px;
-                    margin-top:15px;
-                ">
-
-                    <div style="
-                        flex:1;
-                        padding:14px;
-                        background:rgba(255,255,255,.6);
-                        border-radius:14px;
-                        color:#9c5060;
-                        font-size:.67rem;
-                    ">
-                        ◒ &nbsp; Churn Risk
-                    </div>
-
-                    <div style="
-                        flex:1;
-                        padding:14px;
-                        background:rgba(255,255,255,.6);
-                        border-radius:14px;
-                        color:#9c5060;
-                        font-size:.67rem;
-                    ">
-                        ◎ &nbsp; Retention Priority
-                    </div>
-
-                </div>
-
             </div>
-
         </div>
 
     </div>
@@ -1399,6 +1455,32 @@ elif st.session_state.page == "form":
 
     with form_col:
 
+        saved_inputs = {}
+        if st.session_state.analysis_result is not None:
+            saved_inputs = st.session_state.analysis_result.get("customer_inputs", {})
+
+        saved_tenure = int(saved_inputs.get("tenure", 0))
+        saved_contract = saved_inputs.get("contract", "Select...")
+        saved_payment = saved_inputs.get("payment_method", "Select...")
+        saved_billing_raw = saved_inputs.get("paperless_billing", None)
+        saved_billing = (
+            "Digital / Paperless" if saved_billing_raw == "Yes"
+            else "Paper / Standard" if saved_billing_raw == "No"
+            else "Select..."
+        )
+        saved_monthly = float(saved_inputs.get("monthly_charges", 0.0))
+        saved_total = float(saved_inputs.get("total_charges", 0.0))
+
+        contract_options = ["Select...", "Month-to-month", "One year", "Two year"]
+        payment_options = [
+            "Select...",
+            "Electronic check",
+            "Mailed check",
+            "Bank transfer (automatic)",
+            "Credit card (automatic)"
+        ]
+        billing_options = ["Select...", "Digital / Paperless", "Paper / Standard"]
+
         with st.form(
             "customer_form",
             clear_on_submit=False,
@@ -1435,7 +1517,7 @@ elif st.session_state.page == "form":
                     "How long has the customer been with the company? *",
                     min_value=0,
                     max_value=72,
-                    value=0,
+                    value=saved_tenure,
                     step=1
                 )
 
@@ -1449,12 +1531,8 @@ elif st.session_state.page == "form":
 
                 contract = st.selectbox(
                     "Customer contract type *",
-                    [
-                        "Select...",
-                        "Month-to-month",
-                        "One year",
-                        "Two year"
-                    ]
+                    contract_options,
+                    index=contract_options.index(saved_contract) if saved_contract in contract_options else 0
                 )
 
                 render_html("""
@@ -1467,13 +1545,8 @@ elif st.session_state.page == "form":
 
                 payment_method = st.selectbox(
                     "How does the customer make payments? *",
-                    [
-                        "Select...",
-                        "Electronic check",
-                        "Mailed check",
-                        "Bank transfer (automatic)",
-                        "Credit card (automatic)"
-                    ]
+                    payment_options,
+                    index=payment_options.index(saved_payment) if saved_payment in payment_options else 0
                 )
 
                 render_html("""
@@ -1491,11 +1564,8 @@ elif st.session_state.page == "form":
 
                 paperless_billing = st.selectbox(
                     "How does the customer receive bills? *",
-                    [
-                        "Select...",
-                        "Digital / Paperless",
-                        "Paper / Standard"
-                    ]
+                    billing_options,
+                    index=billing_options.index(saved_billing) if saved_billing in billing_options else 0
                 )
 
                 render_html("""
@@ -1509,7 +1579,7 @@ elif st.session_state.page == "form":
                 monthly_charges = st.number_input(
                     "Customer's monthly payment amount *",
                     min_value=0.0,
-                    value=0.0,
+                    value=saved_monthly,
                     step=1.0,
                     format="%.2f"
                 )
@@ -1525,7 +1595,7 @@ elif st.session_state.page == "form":
                 total_charges = st.number_input(
                     "Customer's total payments to date *",
                     min_value=0.0,
-                    value=0.0,
+                    value=saved_total,
                     step=10.0,
                     format="%.2f"
                 )
@@ -1949,54 +2019,129 @@ elif st.session_state.page == "results":
             """)
 
         # ----------------------------------------------------
-        # RISK VISUALIZATION
+        # VISUAL ANALYSIS
         # ----------------------------------------------------
 
         render_html("""
         <div style="margin-top:24px;">
-            <div class="page-kicker">Risk Visualization</div>
-            <div class="detail-title">Customer churn risk at a glance</div>
+            <div class="page-kicker">Visual Analysis</div>
+            <div class="detail-title">Customer score profile</div>
             <div class="detail-copy">
-                The marker shows the customer's model-estimated churn probability
-                across the four risk ranges used by NAVIGATE.
+                Three complementary views of the scores produced for this customer.
+                These charts summarize this analysis only; they do not represent
+                the distribution of the full training dataset.
             </div>
         </div>
         """)
 
-        fig, ax = plt.subplots(figsize=(9, 1.8))
-        ax.barh(
-            ["Churn Risk"],
-            [100],
-            height=0.34,
-            alpha=0.16
-        )
-        ax.barh(
-            ["Churn Risk"],
-            [churn_risk],
-            height=0.34
-        )
-        ax.axvline(30, linewidth=1, linestyle="--", alpha=0.45)
-        ax.axvline(50, linewidth=1, linestyle="--", alpha=0.45)
-        ax.axvline(75, linewidth=1, linestyle="--", alpha=0.45)
-        ax.scatter([churn_risk], [0], s=90, zorder=5)
-        ax.text(
-            churn_risk,
-            0.23,
-            f"{churn_risk:.0f}% · {risk_level}",
-            ha="center",
-            va="bottom",
-            fontsize=10,
-            fontweight="bold"
-        )
-        ax.set_xlim(0, 100)
-        ax.set_xlabel("Estimated churn probability (%)")
-        ax.set_xticks([0, 30, 50, 75, 100])
-        ax.set_yticks([])
-        for spine in ["top", "right", "left"]:
-            ax.spines[spine].set_visible(False)
-        fig.tight_layout()
+        chart_labels = ["Churn Risk", "Business Impact", "Retention Priority"]
+        chart_values = [churn_risk, business_impact, retention_priority]
+
+        # Shared visual styling
+        chart_bg = "#fffafb"
+        text_color = "#79172b"
+        muted_color = "#9b757d"
+        accent = "#b72243"
+        accent_soft = "#e9aeba"
+        grid_color = "#ead8dc"
+
+        # BAR CHART
+        render_html("""
+        <div class="chart-card">
+            <div class="chart-title">Score Comparison</div>
+            <div class="chart-subtitle">
+                Side-by-side comparison of the three customer scores.
+            </div>
+        </div>
+        """)
+
+        fig, ax = plt.subplots(figsize=(9, 3.6))
+        fig.patch.set_facecolor(chart_bg)
+        ax.set_facecolor(chart_bg)
+        bars = ax.bar(chart_labels, chart_values, width=0.55, color=[accent, accent_soft, "#8d1731"])
+        ax.set_ylim(0, 110)
+        ax.set_ylabel("Score / 100", color=muted_color, fontsize=9)
+        ax.tick_params(axis="x", colors=text_color, labelsize=9, length=0)
+        ax.tick_params(axis="y", colors=muted_color, labelsize=8, length=0)
+        ax.yaxis.grid(True, color=grid_color, linewidth=0.8, alpha=0.7)
+        ax.set_axisbelow(True)
+        for bar, value in zip(bars, chart_values):
+            ax.text(
+                bar.get_x() + bar.get_width()/2,
+                min(value + 3, 104),
+                f"{value:.0f}",
+                ha="center",
+                va="bottom",
+                fontsize=10,
+                fontweight="bold",
+                color=text_color
+            )
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        fig.tight_layout(pad=1.2)
         st.pyplot(fig, use_container_width=True)
         plt.close(fig)
+
+        chart_left, chart_right = st.columns(2, gap="medium")
+
+        # LINE CHART
+        with chart_left:
+            render_html("""
+            <div class="chart-card">
+                <div class="chart-title">Score Profile</div>
+                <div class="chart-subtitle">
+                    A connected view of the customer's three analysis scores.
+                </div>
+            </div>
+            """)
+            fig, ax = plt.subplots(figsize=(5.3, 3.5))
+            fig.patch.set_facecolor(chart_bg)
+            ax.set_facecolor(chart_bg)
+            x = list(range(len(chart_labels)))
+            ax.plot(x, chart_values, marker="o", linewidth=2.6, markersize=7, color=accent)
+            ax.fill_between(x, chart_values, [0, 0, 0], color=accent_soft, alpha=0.16)
+            ax.set_xticks(x)
+            ax.set_xticklabels(["Churn", "Impact", "Priority"], color=text_color, fontsize=8)
+            ax.set_ylim(0, 110)
+            ax.tick_params(axis="y", colors=muted_color, labelsize=8, length=0)
+            ax.tick_params(axis="x", length=0)
+            ax.yaxis.grid(True, color=grid_color, linewidth=0.8, alpha=0.7)
+            ax.set_axisbelow(True)
+            for xi, value in zip(x, chart_values):
+                ax.text(xi, min(value + 5, 104), f"{value:.0f}", ha="center",
+                        fontsize=9, fontweight="bold", color=text_color)
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            fig.tight_layout(pad=1.1)
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+
+        # HISTOGRAM
+        with chart_right:
+            render_html("""
+            <div class="chart-card">
+                <div class="chart-title">Score Distribution</div>
+                <div class="chart-subtitle">
+                    Distribution of this customer's three calculated scores.
+                </div>
+            </div>
+            """)
+            fig, ax = plt.subplots(figsize=(5.3, 3.5))
+            fig.patch.set_facecolor(chart_bg)
+            ax.set_facecolor(chart_bg)
+            bins = [0, 20, 40, 60, 80, 100]
+            ax.hist(chart_values, bins=bins, color=accent, alpha=0.88, rwidth=0.82)
+            ax.set_xlim(0, 100)
+            ax.set_xlabel("Score range", color=muted_color, fontsize=8)
+            ax.set_ylabel("Number of scores", color=muted_color, fontsize=8)
+            ax.tick_params(axis="both", colors=muted_color, labelsize=8, length=0)
+            ax.yaxis.grid(True, color=grid_color, linewidth=0.8, alpha=0.7)
+            ax.set_axisbelow(True)
+            for spine in ax.spines.values():
+                spine.set_visible(False)
+            fig.tight_layout(pad=1.1)
+            st.pyplot(fig, use_container_width=True)
+            plt.close(fig)
 
         # ----------------------------------------------------
         # WHY THIS RESULT IS IMPORTANT
@@ -2162,18 +2307,67 @@ elif st.session_state.page == "results":
         """)
 
         # ----------------------------------------------------
-        # NEXT STEP
+        # RESULT INTERPRETATION
         # ----------------------------------------------------
+
+        interpretation_result, interpretation_why, interpretation_action = (
+            get_result_interpretation(
+                risk_level,
+                churn_risk,
+                factor_action_pairs
+            )
+        )
+
+        interpretation_badge = get_badge_class(risk_level)
 
         render_html(f"""
         <div class="decision-card">
             <div class="decision-head">
-                <div class="decision-icon">→</div>
-                <div class="decision-label">Recommended Next Step</div>
+                <div class="decision-icon">◎</div>
+                <div>
+                    <div class="decision-label">Result Interpretation</div>
+                    <div class="decision-title">
+                        <span class="badge badge-{interpretation_badge}">
+                            {html.escape(interpretation_result)}
+                        </span>
+                    </div>
+                </div>
             </div>
 
-            <div class="decision-title">
-                {html.escape(next_step)}
+            <div style="margin-top:17px;">
+                <div style="
+                    color:#7c1a2e;
+                    font-size:.68rem;
+                    font-weight:850;
+                    text-transform:uppercase;
+                    letter-spacing:.08em;
+                    margin-bottom:5px;
+                ">Why this matters</div>
+
+                <div class="decision-text" style="margin-top:0;">
+                    {html.escape(interpretation_why)}
+                </div>
+            </div>
+
+            <div style="
+                margin-top:15px;
+                padding:14px 16px;
+                border-radius:14px;
+                background:rgba(248,220,227,.55);
+                border:1px solid rgba(225,182,191,.55);
+            ">
+                <div style="
+                    color:#7c1a2e;
+                    font-size:.68rem;
+                    font-weight:850;
+                    text-transform:uppercase;
+                    letter-spacing:.08em;
+                    margin-bottom:5px;
+                ">Suggested Action</div>
+
+                <div class="decision-text" style="margin-top:0;">
+                    {html.escape(interpretation_action)}
+                </div>
             </div>
         </div>
         """)
@@ -2192,6 +2386,3 @@ elif st.session_state.page == "results":
             interpreted as causal effects.
         </div>
         """)
-
-
-
