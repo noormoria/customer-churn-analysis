@@ -1237,6 +1237,344 @@ div[data-testid="stAlert"] {
 }
 
 
+/* ---------- LANGUAGE SWITCH ---------- */
+
+.language-switch {
+    width:100%;
+    display:flex;
+    align-items:center;
+    justify-content:flex-end;
+    gap:9px;
+    padding:8px 2px;
+    background:transparent !important;
+}
+
+.language-switch a {
+    color:#9a6973;
+    text-decoration:none !important;
+    font-size:.72rem;
+    font-weight:760;
+    letter-spacing:.02em;
+    padding:3px 2px;
+    border-bottom:1.5px solid transparent;
+    transition:color .18s ease, border-color .18s ease;
+}
+
+.language-switch a:hover {
+    color:#861b32;
+}
+
+.language-switch a.active {
+    color:#861b32;
+    border-bottom-color:#b72243;
+}
+
+.language-divider {
+    color:#d7aeb7;
+    font-size:.7rem;
+}
+
+
+/* ---------- ANIMATED INSIGHT SHOWCASE ---------- */
+
+.insight-showcase {
+    position:absolute;
+    width:430px;
+    height:360px;
+    right:20px;
+    top:42px;
+    perspective:1200px;
+}
+
+.showcase-glow {
+    position:absolute;
+    width:330px;
+    height:330px;
+    border-radius:50%;
+    right:30px;
+    top:10px;
+    background:radial-gradient(
+        circle,
+        rgba(229,89,123,.20) 0%,
+        rgba(237,142,164,.10) 45%,
+        rgba(255,255,255,0) 72%
+    );
+    filter:blur(2px);
+}
+
+.showcase-card {
+    position:absolute;
+    left:50%;
+    top:50%;
+    width:355px;
+    min-height:225px;
+    opacity:0;
+    transform:translate(-50%,-44%) translateX(55px) scale(.93) rotate(2deg);
+    animation:showcaseCycle 16s infinite;
+    will-change:transform,opacity;
+}
+
+.showcase-card:nth-of-type(2) { animation-delay:0s; }
+.showcase-card:nth-of-type(3) { animation-delay:4s; }
+.showcase-card:nth-of-type(4) { animation-delay:8s; }
+.showcase-card:nth-of-type(5) { animation-delay:12s; }
+
+@keyframes showcaseCycle {
+    0% {
+        opacity:0;
+        transform:translate(-50%,-44%) translateX(65px) scale(.92) rotate(3deg);
+        z-index:1;
+    }
+    7% {
+        opacity:1;
+        transform:translate(-50%,-50%) translateX(0) scale(1) rotate(0deg);
+        z-index:5;
+    }
+    21% {
+        opacity:1;
+        transform:translate(-50%,-50%) translateX(0) scale(1) rotate(0deg);
+        z-index:5;
+    }
+    27% {
+        opacity:.28;
+        transform:translate(-50%,-53%) translateX(-38px) scale(.95) rotate(-2deg);
+        z-index:2;
+    }
+    32%,100% {
+        opacity:0;
+        transform:translate(-50%,-56%) translateX(-70px) scale(.90) rotate(-3deg);
+        z-index:1;
+    }
+}
+
+.showcase-shell {
+    position:relative;
+    overflow:hidden;
+    border:1px solid rgba(255,255,255,.90);
+    background:rgba(255,255,255,.61);
+    backdrop-filter:blur(20px);
+    -webkit-backdrop-filter:blur(20px);
+    box-shadow:0 28px 70px rgba(130,28,53,.14);
+}
+
+/* Card 1: circular risk */
+.risk-showcase {
+    border-radius:34px 34px 34px 12px;
+    padding:27px 29px;
+}
+
+.showcase-kicker {
+    color:#aa4b5e;
+    font-size:.61rem;
+    font-weight:850;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+}
+
+.risk-layout {
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:22px;
+    margin-top:20px;
+}
+
+.risk-ring {
+    width:108px;
+    height:108px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:
+        radial-gradient(circle at center, #fff8fa 54%, transparent 56%),
+        conic-gradient(#bd294a 0 72%, #f0d3da 72% 100%);
+    box-shadow:inset 0 0 0 1px rgba(177,57,83,.08);
+}
+
+.risk-ring strong {
+    color:#7a172c;
+    font-size:1.45rem;
+    letter-spacing:-.04em;
+}
+
+.risk-copy {
+    flex:1;
+}
+
+.showcase-title {
+    color:#78172b;
+    font-size:1.03rem;
+    font-weight:850;
+    line-height:1.2;
+}
+
+.showcase-small {
+    color:#9a747c;
+    font-size:.68rem;
+    line-height:1.55;
+    margin-top:7px;
+}
+
+/* Card 2: priority */
+.priority-showcase {
+    border-radius:18px 42px 18px 42px;
+    padding:28px;
+    transform-origin:center;
+}
+
+.priority-number {
+    color:#78172b;
+    font-size:3.2rem;
+    font-weight:850;
+    letter-spacing:-.07em;
+    margin-top:15px;
+}
+
+.priority-number span {
+    font-size:.75rem;
+    color:#a47b83;
+    letter-spacing:0;
+}
+
+.priority-scale {
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:7px;
+    margin-top:17px;
+}
+
+.priority-scale div {
+    height:9px;
+    border-radius:99px;
+    background:#efd5db;
+}
+
+.priority-scale div:nth-child(1),
+.priority-scale div:nth-child(2),
+.priority-scale div:nth-child(3) {
+    background:linear-gradient(90deg,#a91e3e,#d74c68);
+}
+
+.priority-chip {
+    display:inline-flex;
+    margin-top:18px;
+    padding:7px 11px;
+    border-radius:999px;
+    background:#f6d8e0;
+    color:#8d1730;
+    font-size:.62rem;
+    font-weight:850;
+}
+
+/* Card 3: business impact */
+.impact-showcase {
+    border-radius:45px 16px 45px 16px;
+    padding:28px 30px;
+}
+
+.impact-layout {
+    display:grid;
+    grid-template-columns:1fr 1.05fr;
+    align-items:end;
+    gap:22px;
+    margin-top:18px;
+}
+
+.impact-value {
+    color:#78172b;
+    font-size:2.8rem;
+    font-weight:850;
+    letter-spacing:-.06em;
+}
+
+.impact-bars {
+    height:115px;
+    display:flex;
+    align-items:flex-end;
+    justify-content:space-between;
+    gap:8px;
+    padding:8px 0 2px;
+}
+
+.impact-bars span {
+    flex:1;
+    border-radius:8px 8px 3px 3px;
+    background:linear-gradient(180deg,#e8758e,#aa2443);
+    opacity:.84;
+}
+
+.impact-bars span:nth-child(1){height:35%;}
+.impact-bars span:nth-child(2){height:58%;}
+.impact-bars span:nth-child(3){height:46%;}
+.impact-bars span:nth-child(4){height:78%;}
+.impact-bars span:nth-child(5){height:92%;}
+
+/* Card 4: action */
+.action-showcase {
+    border-radius:28px;
+    padding:28px;
+    border-left:4px solid #b92344;
+}
+
+.action-headline {
+    display:flex;
+    gap:14px;
+    align-items:center;
+    margin-top:18px;
+}
+
+.action-symbol {
+    width:52px;
+    height:52px;
+    border-radius:16px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:linear-gradient(145deg,#f6d4dd,#fff);
+    color:#a51e3c;
+    font-size:22px;
+}
+
+.action-lines {
+    margin-top:21px;
+    display:grid;
+    gap:9px;
+}
+
+.action-line {
+    height:10px;
+    border-radius:99px;
+    background:#ecc5ce;
+}
+
+.action-line:nth-child(2){width:82%;}
+.action-line:nth-child(3){width:62%;background:#f2dce1;}
+
+@media(max-width:900px){
+    .insight-showcase {
+        width:100%;
+        right:0;
+        top:15px;
+    }
+
+    .showcase-card {
+        width:min(355px,88vw);
+    }
+}
+
+@media(prefers-reduced-motion: reduce){
+    .showcase-card {
+        animation:none;
+        opacity:0;
+    }
+    .showcase-card:nth-of-type(2){
+        opacity:1;
+        transform:translate(-50%,-50%);
+    }
+}
+
+
 /* ---------- MOBILE ---------- */
 
 @media(max-width:900px){
@@ -1333,17 +1671,30 @@ with nav4:
         st.session_state.page = "about"
         st.rerun()
 
+# Text-only language switch. No white select box.
+query_lang = st.query_params.get("lang")
+
+if query_lang == "ar" and st.session_state.language != "العربية":
+    st.session_state.language = "العربية"
+    st.query_params.clear()
+    st.rerun()
+
+if query_lang == "en" and st.session_state.language != "English":
+    st.session_state.language = "English"
+    st.query_params.clear()
+    st.rerun()
+
 with lang_col:
-    selected_language = st.selectbox(
-        "Language",
-        ["English", "العربية"],
-        index=0 if st.session_state.language == "English" else 1,
-        label_visibility="collapsed",
-        key="language_selector"
-    )
-    if selected_language != st.session_state.language:
-        st.session_state.language = selected_language
-        st.rerun()
+    en_class = "active" if st.session_state.language == "English" else ""
+    ar_class = "active" if st.session_state.language == "العربية" else ""
+
+    render_html(f"""
+    <div class="language-switch">
+        <a class="{en_class}" href="?lang=en" target="_self">EN</a>
+        <span class="language-divider">|</span>
+        <a class="{ar_class}" href="?lang=ar" target="_self">عربي</a>
+    </div>
+    """)
 
 if st.session_state.language == "العربية":
     render_html("""
@@ -1399,28 +1750,113 @@ if st.session_state.page == "home":
         <div class="hero-visual">
             <div class="orb orb-one"></div>
             <div class="orb orb-two"></div>
-            <div class="visual-card">
-                <div style="color:#861b32;font-weight:800;font-size:.85rem;">
-                    {"رؤى العملاء" if st.session_state.language == "العربية" else "Customer Insights"}
-                </div>
-                <div class="visual-mini">
-                    <div class="visual-row">
-                        <div class="visual-icon">◉</div>
-                        <div class="fake-lines">
-                            <div class="fake-line"></div>
-                            <div class="fake-line small"></div>
+
+            <div class="insight-showcase">
+                <div class="showcase-glow"></div>
+
+                <div class="showcase-card">
+                    <div class="showcase-shell risk-showcase">
+                        <div class="showcase-kicker">
+                            {"تحليل المخاطر" if st.session_state.language == "العربية" else "RISK INTELLIGENCE"}
+                        </div>
+
+                        <div class="risk-layout">
+                            <div class="risk-ring">
+                                <strong>72%</strong>
+                            </div>
+
+                            <div class="risk-copy">
+                                <div class="showcase-title">
+                                    {"خطر فقدان العميل" if st.session_state.language == "العربية" else "Estimated Churn Risk"}
+                                </div>
+                                <div class="showcase-small">
+                                    {"تقدير احتمالية مغادرة العميل بناءً على النموذج." if st.session_state.language == "العربية" else
+                                     "Model-estimated customer churn risk for retention review."}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                <div style="display:flex;gap:10px;margin-top:15px;">
-                    <div style="flex:1;padding:14px;background:rgba(255,255,255,.6);border-radius:14px;color:#9c5060;font-size:.67rem;">
-                        ◒ &nbsp; {"خطر فقدان العميل" if st.session_state.language == "العربية" else "Churn Risk"}
-                    </div>
-                    <div style="flex:1;padding:14px;background:rgba(255,255,255,.6);border-radius:14px;color:#9c5060;font-size:.67rem;">
-                        ◎ &nbsp; {"أولوية الاحتفاظ" if st.session_state.language == "العربية" else "Retention Priority"}
+
+                <div class="showcase-card">
+                    <div class="showcase-shell priority-showcase">
+                        <div class="showcase-kicker">
+                            {"أولوية الاحتفاظ" if st.session_state.language == "العربية" else "RETENTION PRIORITY"}
+                        </div>
+
+                        <div class="priority-number">
+                            78 <span>/ 100</span>
+                        </div>
+
+                        <div class="priority-scale">
+                            <div></div><div></div><div></div><div></div>
+                        </div>
+
+                        <div class="priority-chip">
+                            {"أولوية مرتفعة" if st.session_state.language == "العربية" else "HIGH PRIORITY"}
+                        </div>
                     </div>
                 </div>
+
+                <div class="showcase-card">
+                    <div class="showcase-shell impact-showcase">
+                        <div class="showcase-kicker">
+                            {"تأثير الأعمال" if st.session_state.language == "العربية" else "BUSINESS IMPACT"}
+                        </div>
+
+                        <div class="impact-layout">
+                            <div>
+                                <div class="impact-value">84</div>
+                                <div class="showcase-title">
+                                    {"قيمة نسبية" if st.session_state.language == "العربية" else "Relative value"}
+                                </div>
+                                <div class="showcase-small">
+                                    {"مؤشر يعتمد على بيانات الدفع." if st.session_state.language == "العربية" else
+                                     "A relative indicator based on customer payment data."}
+                                </div>
+                            </div>
+
+                            <div class="impact-bars">
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                                <span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="showcase-card">
+                    <div class="showcase-shell action-showcase">
+                        <div class="showcase-kicker">
+                            {"الإجراء التالي" if st.session_state.language == "العربية" else "NEXT BEST ACTION"}
+                        </div>
+
+                        <div class="action-headline">
+                            <div class="action-symbol">◇</div>
+                            <div>
+                                <div class="showcase-title">
+                                    {"اقتراحات احتفاظ قابلة للمراجعة" if st.session_state.language == "العربية" else
+                                     "Reviewable retention actions"}
+                                </div>
+                                <div class="showcase-small">
+                                    {"إجراءات مقترحة حسب نتيجة التحليل." if st.session_state.language == "العربية" else
+                                     "Suggested next steps based on the customer analysis."}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="action-lines">
+                            <div class="action-line"></div>
+                            <div class="action-line"></div>
+                            <div class="action-line"></div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
+        </div>
         </div>
     </div>
     """)
