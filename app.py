@@ -1317,7 +1317,7 @@ if st.session_state.page == "home":
                         <div style="color:#861b32;font-weight:850;font-size:.88rem;">Customer Analytics</div>
                         <div style="color:#b57b87;font-size:.61rem;margin-top:3px;">From customer data to retention decisions</div>
                     </div>
-                    <div style="width:39px;height:39px;border-radius:13px;background:linear-gradient(145deg,#f8d8e0,#ffffff);border:1px solid #efcbd4;display:flex;align-items:center;justify-content:center;color:#a91e3e;font-size:17px;font-weight:900;">N</div>
+                    <div style="width:39px;height:39px;border-radius:13px;background:linear-gradient(145deg,#f8d8e0,#ffffff);border:1px solid #efcbd4;display:flex;align-items:center;justify-content:center;color:#a91e3e;font-size:15px;font-weight:900;letter-spacing:-.04em;">NA</div>
                 </div>
 
                 <div style="background:rgba(255,255,255,.66);border:1px solid rgba(229,186,196,.72);border-radius:18px;padding:20px;">
