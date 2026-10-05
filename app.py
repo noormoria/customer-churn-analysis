@@ -9,7 +9,9 @@ import pandas as pd
 import joblib
 import html
 import textwrap
-import matplotlib.pyplot as plt
+from io import BytesIO
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
 
 
 # ============================================================
@@ -28,6 +30,12 @@ if "page" not in st.session_state:
 
 if "analysis_result" not in st.session_state:
     st.session_state.analysis_result = None
+
+if "language" not in st.session_state:
+    st.session_state.language = "English"
+
+if "analysis_history" not in st.session_state:
+    st.session_state.analysis_history = []
 
 
 def render_html(content):
@@ -76,273 +84,323 @@ def get_badge_class(level):
     }.get(level, "low")
 
 
-def get_risk_explanation(level, score):
-    """Explain what the model-estimated churn level means."""
+def get_decision_summary(level):
+
     if level == "Critical":
         return (
-            f"A churn probability of {score:.0f}% places this customer in the critical-risk range. "
-            "The customer requires immediate retention attention because the model estimates a very high likelihood of churn."
+            "Immediate retention attention recommended",
+            "This customer is in the highest retention priority group. "
+            "Consider a proactive retention response."
         )
+
     if level == "High":
         return (
-            f"A churn probability of {score:.0f}% places this customer in the high-risk range. "
-            "The customer shows a strong likelihood of churn and should be reviewed proactively."
+            "High retention priority",
+            "This customer shows elevated retention priority. "
+            "Review the customer signals and consider proactive action."
         )
+
     if level == "Medium":
         return (
-            f"A churn probability of {score:.0f}% places this customer in the medium-risk range. "
-            "The customer is not currently critical, but the account should be monitored for increasing risk."
-        )
-    return (
-        f"A churn probability of {score:.0f}% places this customer in the low-risk range. "
-        "The model currently estimates a relatively low likelihood of churn."
-    )
-
-
-def get_decision_summary(priority_level, risk_level, churn_risk):
-    if priority_level == "Critical":
-        return (
-            "Immediate retention attention recommended",
-            f"This customer has {risk_level.lower()} churn risk ({churn_risk:.0f}%) and falls in the highest "
-            "retention-priority group. Review the strongest customer signals and begin targeted retention action promptly."
-        )
-
-    if priority_level == "High":
-        return (
-            "High retention priority",
-            f"This customer has {risk_level.lower()} churn risk ({churn_risk:.0f}%) and should receive proactive "
-            "retention attention. Address the most relevant account signals before risk increases."
-        )
-
-    if priority_level == "Medium":
-        return (
             "Moderate retention priority",
-            f"This customer currently has {risk_level.lower()} churn risk ({churn_risk:.0f}%). "
-            "Monitor the account and use targeted engagement where appropriate."
+            "This customer currently shows moderate retention priority. "
+            "Continued monitoring and engagement may be appropriate."
         )
 
     return (
         "Low retention priority",
-        f"This customer currently has {risk_level.lower()} churn risk ({churn_risk:.0f}%). "
-        "Maintain normal engagement and continue monitoring for meaningful changes."
+        "This customer currently ranks in the lower retention priority group. "
+        "No immediate targeted retention action is indicated."
     )
 
 
-def get_factor_action_pairs(
+def get_risk_factors(
     tenure,
     contract,
     payment_method,
-    paperless_billing,
-    monthly_charges,
-    total_charges,
     churn_risk,
     business_impact,
+    priority_level
 ):
-    """
-    Return reviewable customer signals and a practical action for each signal.
-    These are rule-based decision-support recommendations, not causal claims.
-    """
-    pairs = []
-
-    if contract == "Month-to-month":
-        pairs.append((
-            "Month-to-month contract",
-            "The customer has a flexible contract and can leave without a long commitment.",
-            "Consider offering a suitable incentive for a longer-term contract."
-        ))
-
-    if payment_method == "Electronic check":
-        pairs.append((
-            "Electronic check payment",
-            "The customer uses a manual electronic payment method.",
-            "Offer an automatic payment option if it is suitable for the customer."
-        ))
-
-    if tenure < 12:
-        pairs.append((
-            "Short customer tenure",
-            f"The customer has been with the company for only {tenure} month(s).",
-            "Strengthen onboarding, early engagement, and first-year retention support."
-        ))
-    elif tenure < 24:
-        pairs.append((
-            "Developing customer relationship",
-            f"The customer has been with the company for {tenure} months.",
-            "Use a proactive check-in to strengthen the customer relationship."
-        ))
-
-    # Monthly charges are used carefully: we describe the entered amount,
-    # without claiming it caused churn.
-    if monthly_charges >= 80:
-        pairs.append((
-            "High monthly payment amount",
-            f"The customer currently pays ${monthly_charges:,.2f} per month.",
-            "Review the current plan, service fit, and any eligible retention offers."
-        ))
-    elif monthly_charges >= 60:
-        pairs.append((
-            "Moderate-to-high monthly payment amount",
-            f"The customer currently pays ${monthly_charges:,.2f} per month.",
-            "Confirm that the current plan still matches the customer's needs and perceived value."
-        ))
-
-    if paperless_billing == "Yes":
-        pairs.append((
-            "Paperless billing",
-            "The customer receives bills digitally.",
-            "Use digital channels for timely, personalized retention communication."
-        ))
-
-    if business_impact >= 75:
-        pairs.append((
-            "High relative customer value",
-            f"The customer's relative business-impact score is {business_impact:.0f}/100.",
-            "Prioritize a personalized response that reflects the customer's relative value."
-        ))
-    elif business_impact >= 50:
-        pairs.append((
-            "Meaningful relative customer value",
-            f"The customer's relative business-impact score is {business_impact:.0f}/100.",
-            "Consider the customer's value when selecting the retention response."
-        ))
+    factors = []
 
     if churn_risk >= 75:
-        pairs.insert(0, (
-            "Critical model-estimated churn risk",
-            f"The model estimates a {churn_risk:.0f}% probability of churn.",
-            "Begin retention outreach promptly and review the account before other lower-risk cases."
-        ))
+        factors.append("The model estimates a very high likelihood of customer churn")
     elif churn_risk >= 50:
-        pairs.insert(0, (
-            "Elevated model-estimated churn risk",
-            f"The model estimates a {churn_risk:.0f}% probability of churn.",
-            "Proactively review the account and contact the customer when appropriate."
-        ))
-    elif churn_risk >= 30:
-        pairs.insert(0, (
-            "Moderate model-estimated churn risk",
-            f"The model estimates a {churn_risk:.0f}% probability of churn.",
-            "Monitor the account and watch for additional risk signals."
-        ))
+        factors.append("The model estimates an elevated likelihood of customer churn")
 
-    if not pairs:
-        pairs.append((
-            "No major rule-based warning signal",
-            "The entered customer profile does not trigger the main review rules used by this prototype.",
-            "Maintain normal engagement and continue monitoring the model-estimated churn risk."
-        ))
+    if business_impact >= 75:
+        factors.append("The customer has high relative business impact")
+    elif business_impact >= 50:
+        factors.append("The customer has moderate relative business impact")
 
-    return pairs
+    if contract == "Month-to-month":
+        factors.append("Customer is currently on a flexible month-to-month contract")
+
+    if payment_method == "Electronic check":
+        factors.append("Customer currently uses a manual electronic payment method")
+
+    if tenure < 12:
+        factors.append("Customer relationship is less than one year")
+
+    if not factors:
+        if priority_level in ["High", "Critical"]:
+            factors.append(
+                "Overall retention priority is elevated based on the combined analysis"
+            )
+        else:
+            factors.append(
+                "No major customer characteristics require immediate review"
+            )
+
+    return factors
 
 
-def get_recommended_actions(factor_action_pairs, priority_level):
-    """Create a larger, ordered action plan from the customer-specific signals."""
+def get_recommended_actions(
+    tenure,
+    contract,
+    payment_method,
+    churn_risk,
+    business_impact,
+    priority_level
+):
     actions = []
 
     if priority_level == "Critical":
-        actions.extend([
-            ("Immediate", "Contact the customer promptly for a retention-focused conversation."),
-            ("Immediate", "Review recent interactions, complaints, or service concerns before outreach."),
-        ])
+        actions.append("Prioritize this customer for immediate retention outreach")
     elif priority_level == "High":
-        actions.extend([
-            ("Immediate", "Proactively contact the customer and review current needs or concerns."),
-        ])
+        actions.append("Consider proactive retention outreach to this customer")
     elif priority_level == "Medium":
-        actions.extend([
-            ("Priority", "Schedule a proactive customer check-in and continue monitoring risk."),
-        ])
+        actions.append("Monitor the customer closely and maintain proactive engagement")
     else:
-        actions.extend([
-            ("Maintain", "Maintain regular engagement and continue monitoring retention risk."),
-        ])
+        actions.append("Continue regular customer engagement and monitor for changes")
 
-    # Add customer-specific actions.
-    for _, _, action in factor_action_pairs:
-        if action not in [a[1] for a in actions]:
-            actions.append(("Targeted", action))
+    if business_impact >= 75 and churn_risk >= 50:
+        actions.append(
+            "Consider a personalized retention offer based on the customer's value"
+        )
 
-    # Add follow-up for customers needing attention.
-    if priority_level in ("Critical", "High"):
-        actions.append((
-            "Follow-up",
-            "Reassess the customer after the retention action to determine whether further intervention is needed."
-        ))
-    elif priority_level == "Medium":
-        actions.append((
-            "Follow-up",
-            "Reassess the account if the customer's profile or model-estimated risk changes."
-        ))
+    if contract == "Month-to-month":
+        actions.append(
+            "Consider offering an incentive for a longer-term contract"
+        )
 
-    # Remove accidental duplicates while preserving order.
-    unique = []
-    seen = set()
-    for label, action in actions:
-        if action not in seen:
-            unique.append((label, action))
-            seen.add(action)
+    if payment_method == "Electronic check":
+        actions.append(
+            "Consider encouraging a more convenient automatic payment method"
+        )
 
-    return unique
+    if tenure < 12:
+        actions.append(
+            "Strengthen engagement during the customer's first year"
+        )
+
+    if churn_risk >= 75:
+        actions.append(
+            "Review the customer's experience to identify possible concerns before taking further action"
+        )
+
+    return actions
 
 
-def get_next_step(priority_level, actions):
-    if not actions:
-        return "Continue monitoring the customer."
+AR = {
+    "Home": "الرئيسية",
+    "Analyze": "تحليل عميل",
+    "Dashboard": "لوحة المعلومات",
+    "About": "عن NAVIGATE",
+    "Customer Retention Intelligence": "ذكاء الاحتفاظ بالعملاء",
+    "Turn insights into longer relationships": "حوّل البيانات إلى علاقات أطول",
+    "Retention Decision Support": "دعم قرارات الاحتفاظ بالعملاء",
+    "Understand risk.": "افهم المخاطر.",
+    "Prioritize retention.": "رتّب أولوية الاحتفاظ.",
+    "A customer intelligence system that estimates churn risk and helps businesses identify which customers may need more attention.":
+        "نظام ذكي يساعد الشركات على تقدير خطر فقدان العملاء وتحديد العملاء الذين يحتاجون إلى أولوية أكبر للاحتفاظ بهم.",
+    "Start Customer Analysis  →": "ابدأ تحليل العميل  ←",
+    "Customer Information": "بيانات العميل",
+    "Analysis": "التحليل",
+    "Results": "النتائج",
+    "Customer Analysis / 01": "تحليل العميل / 01",
+    "Customer<br>information": "بيانات<br>العميل",
+    "Enter the customer's basic account and payment information. All fields are required to run the analysis.":
+        "أدخل بيانات العميل الأساسية ومعلومات الدفع. جميع الحقول مطلوبة لإجراء التحليل.",
+    "Quick and easy": "سريع وسهل",
+    "Just 6 key details to get started.": "6 بيانات أساسية فقط للبدء.",
+    "← Back to Home": "العودة للرئيسية →",
+    "Customer Details": "تفاصيل العميل",
+    "How long has the customer been with the company? *": "منذ كم شهر والعميل يتعامل مع الشركة؟ *",
+    "Customer contract type *": "نوع عقد العميل *",
+    "How does the customer make payments? *": "كيف يدفع العميل؟ *",
+    "How does the customer receive bills? *": "كيف يستلم العميل الفواتير؟ *",
+    "Customer's monthly payment amount *": "مبلغ الدفع الشهري للعميل *",
+    "Customer's total payments to date *": "إجمالي مدفوعات العميل حتى الآن *",
+    "Run Analysis  →": "تشغيل التحليل  ←",
+    "Retention analysis": "تحليل الاحتفاظ",
+    "Retention<br>analysis": "تحليل<br>الاحتفاظ",
+    "Customer Analysis / 02": "تحليل العميل / 02",
+    "Review the customer's estimated churn risk, business impact, retention priority, and suggested retention actions.":
+        "راجع خطر فقدان العميل، وتأثيره على الأعمال، وأولوية الاحتفاظ به، والإجراءات المقترحة.",
+    "← Edit Customer Data": "تعديل بيانات العميل →",
+    "Retention Priority Score": "درجة أولوية الاحتفاظ",
+    "Estimated Churn Risk": "خطر فقدان العميل المتوقع",
+    "Customer Business Impact": "تأثير العميل على الأعمال",
+    "Decision Summary": "ملخص القرار",
+    "Factors to Review": "عوامل للمراجعة",
+    "Suggested Actions": "إجراءات مقترحة",
+    "Download Analysis Report": "تحميل تقرير التحليل",
+}
 
-    first_action = actions[0][1]
-
-    if priority_level in ("Critical", "High"):
-        return f"Next step: {first_action}"
-    if priority_level == "Medium":
-        return f"Next step: {first_action}"
-    return "Next step: Maintain normal engagement and monitor for meaningful changes."
+def tr(value):
+    if st.session_state.language == "العربية":
+        return AR.get(value, value)
+    return value
 
 
-def get_result_interpretation(risk_level, churn_risk, factor_action_pairs):
-    """Create a concise executive interpretation without claiming causality."""
-    factor_names = [
-        factor for factor, _, _ in factor_action_pairs
-        if "model-estimated churn risk" not in factor.lower()
-        and "customer value" not in factor.lower()
-        and "paperless billing" not in factor.lower()
+def translate_level(level):
+    if st.session_state.language != "العربية":
+        return level
+    return {
+        "Low": "منخفض",
+        "Medium": "متوسط",
+        "High": "مرتفع",
+        "Critical": "حرج"
+    }.get(level, level)
+
+
+def translate_factor(text):
+    if st.session_state.language != "العربية":
+        return text
+    mapping = {
+        "The model estimates a very high likelihood of customer churn":
+            "النموذج يقدّر احتمالًا مرتفعًا جدًا لفقدان العميل",
+        "The model estimates an elevated likelihood of customer churn":
+            "النموذج يقدّر احتمالًا مرتفعًا لفقدان العميل",
+        "The customer has high relative business impact":
+            "للعميل تأثير نسبي مرتفع على الأعمال",
+        "The customer has moderate relative business impact":
+            "للعميل تأثير نسبي متوسط على الأعمال",
+        "Customer is currently on a flexible month-to-month contract":
+            "العميل يستخدم عقدًا شهريًا مرنًا",
+        "Customer currently uses a manual electronic payment method":
+            "العميل يستخدم وسيلة دفع إلكترونية يدوية",
+        "Customer relationship is less than one year":
+            "مدة علاقة العميل بالشركة أقل من سنة",
+        "Overall retention priority is elevated based on the combined analysis":
+            "أولوية الاحتفاظ بالعميل مرتفعة بناءً على التحليل المجمع",
+        "No major customer characteristics require immediate review":
+            "لا توجد خصائص رئيسية تتطلب مراجعة فورية"
+    }
+    return mapping.get(text, text)
+
+
+def translate_action(text):
+    if st.session_state.language != "العربية":
+        return text
+    mapping = {
+        "Prioritize this customer for immediate retention outreach":
+            "إعطاء هذا العميل أولوية للتواصل معه بهدف الاحتفاظ به",
+        "Consider proactive retention outreach to this customer":
+            "النظر في التواصل الاستباقي مع العميل للاحتفاظ به",
+        "Monitor the customer closely and maintain proactive engagement":
+            "متابعة العميل والحفاظ على تواصل استباقي معه",
+        "Continue regular customer engagement and monitor for changes":
+            "الاستمرار في التواصل المعتاد مع العميل ومتابعة أي تغيّرات",
+        "Consider a personalized retention offer based on the customer's value":
+            "النظر في تقديم عرض احتفاظ مخصص يتناسب مع قيمة العميل",
+        "Consider offering an incentive for a longer-term contract":
+            "النظر في تقديم حافز للانتقال إلى عقد أطول",
+        "Consider encouraging a more convenient automatic payment method":
+            "اقتراح وسيلة دفع تلقائية أكثر سهولة",
+        "Strengthen engagement during the customer's first year":
+            "تعزيز التواصل مع العميل خلال سنته الأولى",
+        "Review the customer's experience to identify possible concerns before taking further action":
+            "مراجعة تجربة العميل لتحديد أي مشكلات محتملة قبل اتخاذ إجراء إضافي"
+    }
+    return mapping.get(text, text)
+
+
+def create_pdf_report(result):
+    """Generate a clean English PDF report. Arabic UI remains supported;
+    English is used in the PDF to ensure reliable rendering on Streamlit Cloud."""
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    width, height = A4
+
+    pdf.setTitle("NAVIGATE Customer Retention Analysis")
+    pdf.setFont("Helvetica-Bold", 20)
+    pdf.drawString(50, height - 60, "NAVIGATE")
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(50, height - 78, "Customer Retention Intelligence")
+
+    y = height - 120
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.drawString(50, y, "Customer Retention Analysis")
+    y -= 34
+
+    rows = [
+        ("Retention Priority", f'{result["retention_priority"]:.2f} / 100 ({result["priority_level"]})'),
+        ("Estimated Churn Risk", f'{result["churn_risk"]:.2f}% ({result["risk_level"]})'),
+        ("Business Impact", f'{result["business_impact"]:.2f} / 100'),
     ]
-    shown = factor_names[:2]
 
-    if shown:
-        signal_text = " Review signals include " + " and ".join(shown) + "."
-    else:
-        signal_text = " No additional major rule-based warning signal was triggered by the entered profile."
+    pdf.setFont("Helvetica", 11)
+    for label, value in rows:
+        pdf.setFont("Helvetica-Bold", 11)
+        pdf.drawString(50, y, label)
+        pdf.setFont("Helvetica", 11)
+        pdf.drawString(220, y, value)
+        y -= 24
 
-    if risk_level == "Critical":
-        result = f"Critical Churn Risk — {churn_risk:.0f}%"
-        why = (
-            "The model estimates a very high likelihood of churn, so this account requires prompt retention attention."
-            + signal_text
-        )
-        action = "Prioritize retention outreach, review the customer's current needs, and apply the most relevant targeted retention actions."
-    elif risk_level == "High":
-        result = f"High Churn Risk — {churn_risk:.0f}%"
-        why = (
-            "The model estimates an elevated likelihood of churn, making proactive review important before the risk increases."
-            + signal_text
-        )
-        action = "Contact the customer proactively, review the strongest account signals, and select a targeted retention response."
-    elif risk_level == "Medium":
-        result = f"Medium Churn Risk — {churn_risk:.0f}%"
-        why = (
-            "The customer is not in the highest-risk range, but the model indicates enough churn risk to justify monitoring and targeted engagement."
-            + signal_text
-        )
-        action = "Monitor the account, use a proactive check-in where appropriate, and reassess if the customer profile changes."
-    else:
-        result = f"Low Churn Risk — {churn_risk:.0f}%"
-        why = (
-            "The model currently estimates a relatively low likelihood of churn, so urgent retention intervention is not indicated."
-            + signal_text
-        )
-        action = "Maintain normal engagement and continue monitoring for meaningful changes."
+    y -= 12
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(50, y, "Decision Summary")
+    y -= 20
+    pdf.setFont("Helvetica-Bold", 10)
+    pdf.drawString(50, y, result["decision_title"][:85])
+    y -= 17
+    pdf.setFont("Helvetica", 9)
+    for line in textwrap.wrap(result["decision_text"], 90):
+        pdf.drawString(50, y, line)
+        y -= 14
 
-    return result, why, action
+    y -= 14
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(50, y, "Factors to Review")
+    y -= 20
+    pdf.setFont("Helvetica", 9)
+    for factor in result["risk_factors"]:
+        for i, line in enumerate(textwrap.wrap(factor, 88)):
+            prefix = "- " if i == 0 else "  "
+            pdf.drawString(55, y, prefix + line)
+            y -= 14
+
+    y -= 10
+    pdf.setFont("Helvetica-Bold", 12)
+    pdf.drawString(50, y, "Suggested Actions")
+    y -= 20
+    pdf.setFont("Helvetica", 9)
+    for idx, action in enumerate(result["actions"], 1):
+        for i, line in enumerate(textwrap.wrap(action, 84)):
+            prefix = f"{idx}. " if i == 0 else "   "
+            pdf.drawString(55, y, prefix + line)
+            y -= 14
+            if y < 70:
+                pdf.showPage()
+                y = height - 60
+                pdf.setFont("Helvetica", 9)
+
+    y -= 18
+    pdf.setFont("Helvetica-Oblique", 8)
+    note = (
+        "NAVIGATE is a decision-support system. Scores depend on the trained model "
+        "and project scoring assumptions. Suggested actions do not guarantee a specific outcome."
+    )
+    for line in textwrap.wrap(note, 100):
+        pdf.drawString(50, y, line)
+        y -= 12
+
+    pdf.save()
+    buffer.seek(0)
+    return buffer.getvalue()
 
 
 # ============================================================
@@ -580,18 +638,6 @@ div[data-testid="stToolbar"] {
     filter:blur(1px);
 }
 
-@keyframes floatOrbOne {
-    0%,100% { transform:translate3d(0,0,0) scale(1); }
-    35% { transform:translate3d(-18px,14px,0) scale(1.035); }
-    70% { transform:translate3d(12px,-12px,0) scale(.985); }
-}
-
-@keyframes floatOrbTwo {
-    0%,100% { transform:translate3d(0,0,0) scale(1); }
-    40% { transform:translate3d(20px,-16px,0) scale(.97); }
-    75% { transform:translate3d(-12px,12px,0) scale(1.04); }
-}
-
 .orb-one {
     width:330px;
     height:330px;
@@ -603,7 +649,6 @@ div[data-testid="stToolbar"] {
             rgba(255,255,255,.82),
             rgba(234,105,137,.28)
         );
-    animation:floatOrbOne 9s ease-in-out infinite;
 }
 
 .orb-two {
@@ -612,7 +657,6 @@ div[data-testid="stToolbar"] {
     right:190px;
     top:145px;
     background:rgba(240,133,157,.17);
-    animation:floatOrbTwo 11s ease-in-out infinite;
 }
 
 .visual-card {
@@ -1193,61 +1237,6 @@ div[data-testid="stAlert"] {
 }
 
 
-/* ---------- ANALYTICS CHARTS ---------- */
-
-.chart-card {
-    background:rgba(255,255,255,.76);
-    border:1px solid rgba(224,180,190,.62);
-    border-radius:20px;
-    padding:20px 22px 14px;
-    box-shadow:0 15px 42px rgba(118,29,49,.07);
-    margin-top:10px;
-}
-
-.chart-title {
-    color:#79172b;
-    font-size:.84rem;
-    font-weight:850;
-    margin-bottom:2px;
-}
-
-.chart-subtitle {
-    color:#9b757d;
-    font-size:.65rem;
-    line-height:1.5;
-    margin-bottom:8px;
-}
-
-/* ---------- EXPANDABLE RESULT CARDS ---------- */
-
-div[data-testid="stExpander"] {
-    background:rgba(255,255,255,.72);
-    border:1px solid rgba(224,180,190,.62) !important;
-    border-radius:20px !important;
-    box-shadow:0 15px 42px rgba(118,29,49,.06);
-    overflow:hidden;
-    margin-top:14px;
-}
-
-div[data-testid="stExpander"] details {
-    border:none !important;
-}
-
-div[data-testid="stExpander"] summary {
-    padding:16px 19px !important;
-    color:#79172b !important;
-    font-weight:800 !important;
-    font-size:.82rem !important;
-}
-
-div[data-testid="stExpander"] summary:hover {
-    background:rgba(248,220,227,.32);
-}
-
-div[data-testid="stExpanderDetails"] {
-    padding:0 19px 18px !important;
-}
-
 /* ---------- MOBILE ---------- */
 
 @media(max-width:900px){
@@ -1283,138 +1272,9 @@ div[data-testid="stExpanderDetails"] {
     }
 }
 
-
-/* ---------- FLOATING ANALYTICS BACKGROUND ---------- */
-
-.block-container {
-    position:relative;
-    z-index:2;
-}
-
-.analytics-bg {
-    position:fixed;
-    inset:0;
-    overflow:hidden;
-    pointer-events:none;
-    z-index:1;
-}
-
-.analytics-symbol {
-    position:absolute;
-    width:40px;
-    height:40px;
-    color:#8d1731;
-    opacity:.22;
-    filter:blur(.15px);
-    will-change:transform;
-}
-
-.analytics-symbol svg {
-    width:100%;
-    height:100%;
-    display:block;
-    fill:none;
-    stroke:currentColor;
-    stroke-width:1.5;
-    stroke-linecap:round;
-    stroke-linejoin:round;
-}
-
-.analytics-symbol.s1 { left:4%; top:18%; width:28px; height:28px; animation:bgFloatA 18s ease-in-out infinite; }
-.analytics-symbol.s2 { left:11%; top:70%; width:42px; height:42px; opacity:.19; animation:bgFloatB 23s ease-in-out infinite; }
-.analytics-symbol.s3 { left:28%; top:9%; width:31px; height:31px; animation:bgFloatC 20s ease-in-out infinite; }
-.analytics-symbol.s4 { left:45%; top:78%; width:36px; height:36px; opacity:.20; animation:bgFloatA 25s ease-in-out infinite reverse; }
-.analytics-symbol.s5 { right:31%; top:19%; width:27px; height:27px; opacity:.20; animation:bgFloatB 21s ease-in-out infinite; }
-.analytics-symbol.s6 { right:18%; top:65%; width:40px; height:40px; opacity:.18; animation:bgFloatC 26s ease-in-out infinite; }
-.analytics-symbol.s7 { right:5%; top:31%; width:32px; height:32px; animation:bgFloatA 22s ease-in-out infinite; }
-.analytics-symbol.s8 { right:8%; bottom:7%; width:25px; height:25px; opacity:.19; animation:bgFloatB 19s ease-in-out infinite reverse; }
-.analytics-symbol.s9 { left:20%; bottom:5%; width:30px; height:30px; opacity:.17; animation:bgFloatC 24s ease-in-out infinite reverse; }
-.analytics-symbol.s10 { left:58%; top:7%; width:24px; height:24px; opacity:.18; animation:bgFloatA 20s ease-in-out infinite reverse; }
-
-@keyframes bgFloatA {
-    0%,100% { transform:translate3d(0,0,0) rotate(0deg); }
-    35% { transform:translate3d(12px,-16px,0) rotate(5deg); }
-    70% { transform:translate3d(-8px,10px,0) rotate(-4deg); }
-}
-
-@keyframes bgFloatB {
-    0%,100% { transform:translate3d(0,0,0) rotate(0deg); }
-    40% { transform:translate3d(-15px,-9px,0) rotate(-6deg); }
-    75% { transform:translate3d(10px,14px,0) rotate(4deg); }
-}
-
-@keyframes bgFloatC {
-    0%,100% { transform:translate3d(0,0,0) scale(1); }
-    50% { transform:translate3d(7px,-18px,0) scale(1.06); }
-}
-
-@media(max-width:900px) {
-    .analytics-symbol { opacity:.14; }
-    .analytics-symbol.s3,
-    .analytics-symbol.s5,
-    .analytics-symbol.s9 { display:none; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .analytics-symbol,
-    .orb-one,
-    .orb-two { animation:none !important; }
-}
-
 </style>
 """)
 
-
-
-# ============================================================
-# SUBTLE FLOATING ANALYTICS BACKGROUND
-# ============================================================
-
-render_html("""
-<div class="analytics-bg" aria-hidden="true">
-
-    <div class="analytics-symbol s1">
-        <svg viewBox="0 0 32 32"><path d="M5 26V16M12 26V10M19 26V19M26 26V6"/><path d="M3 27.5H29"/></svg>
-    </div>
-
-    <div class="analytics-symbol s2">
-        <svg viewBox="0 0 32 32"><path d="M4 24L10 18L15 20L22 11L28 7"/><circle cx="4" cy="24" r="1.5"/><circle cx="10" cy="18" r="1.5"/><circle cx="15" cy="20" r="1.5"/><circle cx="22" cy="11" r="1.5"/><circle cx="28" cy="7" r="1.5"/></svg>
-    </div>
-
-    <div class="analytics-symbol s3">
-        <svg viewBox="0 0 32 32"><ellipse cx="16" cy="8" rx="10" ry="4"/><path d="M6 8V16C6 18.2 10.5 20 16 20S26 18.2 26 16V8M6 16V24C6 26.2 10.5 28 16 28S26 26.2 26 24V16"/></svg>
-    </div>
-
-    <div class="analytics-symbol s4">
-        <svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="11"/><circle cx="16" cy="16" r="6"/><circle cx="16" cy="16" r="1.5"/><path d="M24 8L28 4M24 4H28V8"/></svg>
-    </div>
-
-    <div class="analytics-symbol s5">
-        <svg viewBox="0 0 32 32"><circle cx="16" cy="11" r="5"/><path d="M7 27C8 21 11 18 16 18S24 21 25 27"/></svg>
-    </div>
-
-    <div class="analytics-symbol s6">
-        <svg viewBox="0 0 32 32"><circle cx="7" cy="16" r="2.5"/><circle cx="16" cy="7" r="2.5"/><circle cx="25" cy="14" r="2.5"/><circle cx="20" cy="25" r="2.5"/><path d="M9 14L14 9M18.5 8L23 12M24 16.5L21 22.5M18 24L9 17"/></svg>
-    </div>
-
-    <div class="analytics-symbol s7">
-        <svg viewBox="0 0 32 32"><path d="M5 25V18H10V25M13 25V12H18V25M21 25V7H26V25"/><path d="M4 27H28"/></svg>
-    </div>
-
-    <div class="analytics-symbol s8">
-        <svg viewBox="0 0 32 32"><path d="M6 24L13 17L18 20L27 9"/><path d="M21 9H27V15"/></svg>
-    </div>
-
-    <div class="analytics-symbol s9">
-        <svg viewBox="0 0 32 32"><rect x="5" y="5" width="8" height="8" rx="2"/><rect x="19" y="5" width="8" height="8" rx="2"/><rect x="5" y="19" width="8" height="8" rx="2"/><rect x="19" y="19" width="8" height="8" rx="2"/></svg>
-    </div>
-
-    <div class="analytics-symbol s10">
-        <svg viewBox="0 0 32 32"><path d="M6 23C10 18 12 12 16 12C20 12 21 18 26 7"/><circle cx="6" cy="23" r="1.5"/><circle cx="16" cy="12" r="1.5"/><circle cx="26" cy="7" r="1.5"/></svg>
-    </div>
-
-</div>
-""")
 
 # ============================================================
 # TOP BAR
@@ -1445,6 +1305,59 @@ render_html("""
 </div>
 """)
 
+# ============================================================
+# NAVIGATION + LANGUAGE
+# ============================================================
+
+nav1, nav2, nav3, nav4, spacer, lang_col = st.columns(
+    [1, 1.2, 1.2, 1, 3.2, 1.25]
+)
+
+with nav1:
+    if st.button(tr("Home"), key="nav_home", use_container_width=True):
+        st.session_state.page = "home"
+        st.rerun()
+
+with nav2:
+    if st.button(tr("Analyze"), key="nav_analyze", use_container_width=True):
+        st.session_state.page = "form"
+        st.rerun()
+
+with nav3:
+    if st.button(tr("Dashboard"), key="nav_dashboard", use_container_width=True):
+        st.session_state.page = "dashboard"
+        st.rerun()
+
+with nav4:
+    if st.button(tr("About"), key="nav_about", use_container_width=True):
+        st.session_state.page = "about"
+        st.rerun()
+
+with lang_col:
+    selected_language = st.selectbox(
+        "Language",
+        ["English", "العربية"],
+        index=0 if st.session_state.language == "English" else 1,
+        label_visibility="collapsed",
+        key="language_selector"
+    )
+    if selected_language != st.session_state.language:
+        st.session_state.language = selected_language
+        st.rerun()
+
+if st.session_state.language == "العربية":
+    render_html("""
+    <style>
+        .stApp { direction: rtl; }
+        .topbar, .brand-wrap, .metric-top, .detail-header,
+        .decision-head, .quick-card, .form-heading {
+            direction: rtl;
+        }
+        input, [data-baseweb="select"] { direction: rtl; }
+    </style>
+    """)
+
+
 
 
 # ============================================================
@@ -1453,91 +1366,68 @@ render_html("""
 
 if st.session_state.page == "home":
 
-    render_html("""
+    if st.session_state.language == "العربية":
+        eyebrow = "دعم قرارات الاحتفاظ بالعملاء"
+        title_a = "افهم المخاطر."
+        title_b = "رتّب أولوية الاحتفاظ."
+        desc = (
+            "منصة تساعد الشركات على تقدير خطر فقدان العملاء، "
+            "وتحديد أولوية الاحتفاظ بهم، وتحويل النتائج إلى إجراءات قابلة للمراجعة."
+        )
+        start_label = "ابدأ تحليل العميل  ←"
+    else:
+        eyebrow = "Retention Decision Support"
+        title_a = "Understand risk."
+        title_b = "Prioritize retention."
+        desc = (
+            "A customer intelligence platform that estimates churn risk, "
+            "prioritizes retention, and turns analysis into reviewable actions."
+        )
+        start_label = "Start Customer Analysis  →"
+
+    render_html(f"""
     <div class="hero-grid">
-
         <div class="hero-copy">
-
-            <div class="eyebrow">
-                Retention Decision Support
-            </div>
-
+            <div class="eyebrow">{eyebrow}</div>
             <div class="hero-title">
-                Understand risk.<br>
-                <span>Prioritize retention.</span>
+                {title_a}<br>
+                <span>{title_b}</span>
             </div>
-
-            <div class="hero-description">
-
-                A customer intelligence system that estimates
-                churn risk and helps businesses identify which
-                customers may need more attention.
-
-            </div>
-
+            <div class="hero-description">{desc}</div>
         </div>
-
 
         <div class="hero-visual">
-
             <div class="orb orb-one"></div>
             <div class="orb orb-two"></div>
-
-            <div class="visual-card" style="transform:rotate(2deg);">
-
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:22px;">
-                    <div>
-                        <div style="color:#861b32;font-weight:850;font-size:.88rem;">Customer Analytics</div>
-                        <div style="color:#b57b87;font-size:.61rem;margin-top:3px;">From customer data to retention decisions</div>
-                    </div>
-                    <div style="width:39px;height:39px;border-radius:13px;background:linear-gradient(145deg,#f8d8e0,#ffffff);border:1px solid #efcbd4;display:flex;align-items:center;justify-content:center;color:#a91e3e;font-size:15px;font-weight:900;letter-spacing:-.04em;">NA</div>
+            <div class="visual-card">
+                <div style="color:#861b32;font-weight:800;font-size:.85rem;">
+                    {"رؤى العملاء" if st.session_state.language == "العربية" else "Customer Insights"}
                 </div>
-
-                <div style="background:rgba(255,255,255,.66);border:1px solid rgba(229,186,196,.72);border-radius:18px;padding:20px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:17px;">
-                        <div style="color:#8a3246;font-size:.66rem;font-weight:800;">Retention Intelligence</div>
-                        <div style="color:#b7828d;font-size:.56rem;">ANALYSIS</div>
+                <div class="visual-mini">
+                    <div class="visual-row">
+                        <div class="visual-icon">◉</div>
+                        <div class="fake-lines">
+                            <div class="fake-line"></div>
+                            <div class="fake-line small"></div>
+                        </div>
                     </div>
-
-                    <div style="height:105px;display:flex;align-items:flex-end;gap:11px;padding:0 7px 10px;border-bottom:1px solid #efd7dc;">
-                        <div style="flex:1;height:38%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#ed9daf,#f5c7d1);"></div>
-                        <div style="flex:1;height:58%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#dc6f89,#efa9b9);"></div>
-                        <div style="flex:1;height:47%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#e58ca1,#f3bbc7);"></div>
-                        <div style="flex:1;height:78%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#b92b4c,#df7189);"></div>
-                        <div style="flex:1;height:66%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#ca4765,#e98fa3);"></div>
-                        <div style="flex:1;height:90%;border-radius:8px 8px 3px 3px;background:linear-gradient(180deg,#8d1731,#c93b5b);"></div>
+                </div>
+                <div style="display:flex;gap:10px;margin-top:15px;">
+                    <div style="flex:1;padding:14px;background:rgba(255,255,255,.6);border-radius:14px;color:#9c5060;font-size:.67rem;">
+                        ◒ &nbsp; {"خطر فقدان العميل" if st.session_state.language == "العربية" else "Churn Risk"}
                     </div>
-
-                    <div style="display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:7px;margin-top:17px;">
-                        <div style="text-align:center;">
-                            <div style="color:#a22643;font-size:.75rem;font-weight:850;">◉</div>
-                            <div style="color:#8f5965;font-size:.57rem;font-weight:750;margin-top:4px;">Customer Data</div>
-                        </div>
-                        <div style="color:#d28a9a;font-size:.8rem;">→</div>
-                        <div style="text-align:center;">
-                            <div style="color:#a22643;font-size:.75rem;font-weight:850;">◇</div>
-                            <div style="color:#8f5965;font-size:.57rem;font-weight:750;margin-top:4px;">Risk Analysis</div>
-                        </div>
-                        <div style="color:#d28a9a;font-size:.8rem;">→</div>
-                        <div style="text-align:center;">
-                            <div style="color:#a22643;font-size:.75rem;font-weight:850;">◎</div>
-                            <div style="color:#8f5965;font-size:.57rem;font-weight:750;margin-top:4px;">Retention</div>
-                        </div>
+                    <div style="flex:1;padding:14px;background:rgba(255,255,255,.6);border-radius:14px;color:#9c5060;font-size:.67rem;">
+                        ◎ &nbsp; {"أولوية الاحتفاظ" if st.session_state.language == "العربية" else "Retention Priority"}
                     </div>
                 </div>
             </div>
         </div>
-
     </div>
     """)
 
     left, center, right = st.columns([1, 1.3, 2.8])
-
     with center:
-        if st.button(
-            "Start Customer Analysis  →",
-            use_container_width=True
-        ):
+        if st.button(start_label, use_container_width=True, key="home_start_analysis"):
             st.session_state.page = "form"
             st.rerun()
 
@@ -1622,39 +1512,11 @@ elif st.session_state.page == "form":
             "← Back to Home",
             use_container_width=True
         ):
-            # Going to Home starts a fresh customer analysis.
             st.session_state.page = "home"
-            st.session_state.analysis_result = None
             st.rerun()
 
 
     with form_col:
-
-        saved_inputs = {}
-        if st.session_state.analysis_result is not None:
-            saved_inputs = st.session_state.analysis_result.get("customer_inputs", {})
-
-        saved_tenure = int(saved_inputs.get("tenure", 0))
-        saved_contract = saved_inputs.get("contract", "Select...")
-        saved_payment = saved_inputs.get("payment_method", "Select...")
-        saved_billing_raw = saved_inputs.get("paperless_billing", None)
-        saved_billing = (
-            "Digital / Paperless" if saved_billing_raw == "Yes"
-            else "Paper / Standard" if saved_billing_raw == "No"
-            else "Select..."
-        )
-        saved_monthly = float(saved_inputs.get("monthly_charges", 0.0))
-        saved_total = float(saved_inputs.get("total_charges", 0.0))
-
-        contract_options = ["Select...", "Month-to-month", "One year", "Two year"]
-        payment_options = [
-            "Select...",
-            "Electronic check",
-            "Mailed check",
-            "Bank transfer (automatic)",
-            "Credit card (automatic)"
-        ]
-        billing_options = ["Select...", "Digital / Paperless", "Paper / Standard"]
 
         with st.form(
             "customer_form",
@@ -1692,7 +1554,7 @@ elif st.session_state.page == "form":
                     "How long has the customer been with the company? *",
                     min_value=0,
                     max_value=72,
-                    value=saved_tenure,
+                    value=0,
                     step=1
                 )
 
@@ -1706,8 +1568,12 @@ elif st.session_state.page == "form":
 
                 contract = st.selectbox(
                     "Customer contract type *",
-                    contract_options,
-                    index=contract_options.index(saved_contract) if saved_contract in contract_options else 0
+                    [
+                        "Select...",
+                        "Month-to-month",
+                        "One year",
+                        "Two year"
+                    ]
                 )
 
                 render_html("""
@@ -1720,8 +1586,13 @@ elif st.session_state.page == "form":
 
                 payment_method = st.selectbox(
                     "How does the customer make payments? *",
-                    payment_options,
-                    index=payment_options.index(saved_payment) if saved_payment in payment_options else 0
+                    [
+                        "Select...",
+                        "Electronic check",
+                        "Mailed check",
+                        "Bank transfer (automatic)",
+                        "Credit card (automatic)"
+                    ]
                 )
 
                 render_html("""
@@ -1739,8 +1610,11 @@ elif st.session_state.page == "form":
 
                 paperless_billing = st.selectbox(
                     "How does the customer receive bills? *",
-                    billing_options,
-                    index=billing_options.index(saved_billing) if saved_billing in billing_options else 0
+                    [
+                        "Select...",
+                        "Digital / Paperless",
+                        "Paper / Standard"
+                    ]
                 )
 
                 render_html("""
@@ -1754,7 +1628,7 @@ elif st.session_state.page == "form":
                 monthly_charges = st.number_input(
                     "Customer's monthly payment amount *",
                     min_value=0.0,
-                    value=saved_monthly,
+                    value=0.0,
                     step=1.0,
                     format="%.2f"
                 )
@@ -1770,7 +1644,7 @@ elif st.session_state.page == "form":
                 total_charges = st.number_input(
                     "Customer's total payments to date *",
                     min_value=0.0,
-                    value=saved_total,
+                    value=0.0,
                     step=10.0,
                     format="%.2f"
                 )
@@ -1915,36 +1789,28 @@ elif st.session_state.page == "form":
                 )
 
 
-                factor_action_pairs = get_factor_action_pairs(
-                    tenure=tenure,
-                    contract=contract,
-                    payment_method=payment_method,
-                    paperless_billing=billing_value,
-                    monthly_charges=monthly_charges,
-                    total_charges=total_charges,
-                    churn_risk=churn_risk,
-                    business_impact=business_impact_display,
-                )
-
-                actions = get_recommended_actions(
-                    factor_action_pairs,
+                risk_factors = get_risk_factors(
+                    tenure,
+                    contract,
+                    payment_method,
+                    churn_risk,
+                    business_impact_display,
                     priority_level
                 )
 
-                risk_explanation = get_risk_explanation(
-                    risk_level,
-                    churn_risk
+                actions = get_recommended_actions(
+                    tenure,
+                    contract,
+                    payment_method,
+                    churn_risk,
+                    business_impact_display,
+                    priority_level
                 )
 
-                decision_title, decision_text = get_decision_summary(
-                    priority_level,
-                    risk_level,
-                    churn_risk
-                )
-
-                next_step = get_next_step(
-                    priority_level,
-                    actions
+                decision_title, decision_text = (
+                    get_decision_summary(
+                        priority_level
+                    )
                 )
 
 
@@ -1954,26 +1820,174 @@ elif st.session_state.page == "form":
                     "business_impact": business_impact_display,
                     "retention_priority": retention_priority_display,
                     "priority_level": priority_level,
-                    "factor_action_pairs": factor_action_pairs,
+                    "risk_factors": risk_factors,
                     "actions": actions,
-                    "risk_explanation": risk_explanation,
                     "decision_title": decision_title,
                     "decision_text": decision_text,
-                    "next_step": next_step,
                     "customer_inputs": {
                         "tenure": tenure,
                         "contract": contract,
                         "payment_method": payment_method,
-                        "paperless_billing": billing_value,
+                        "paperless_billing": paperless_billing,
                         "monthly_charges": monthly_charges,
-                        "total_charges": total_charges,
+                        "total_charges": total_charges
                     }
                 }
+
+                st.session_state.analysis_history.append(
+                    st.session_state.analysis_result.copy()
+                )
 
 
                 # Separate results page
                 st.session_state.page = "results"
                 st.rerun()
+
+
+
+# ============================================================
+# DASHBOARD PAGE
+# ============================================================
+
+elif st.session_state.page == "dashboard":
+
+    ar = st.session_state.language == "العربية"
+
+    render_html(f"""
+    <div style="padding:25px 4px 12px;">
+        <div class="page-kicker">{"NAVIGATE / لوحة المعلومات" if ar else "NAVIGATE / DASHBOARD"}</div>
+        <div class="page-title">{"لوحة المعلومات" if ar else "Analysis dashboard"}</div>
+        <div class="page-copy">
+            {"ملخص للتحليلات التي أجريتها خلال الجلسة الحالية." if ar else
+             "A session-level overview of the customer analyses completed in NAVIGATE."}
+        </div>
+    </div>
+    """)
+
+    history = st.session_state.analysis_history
+
+    if not history:
+        st.info(
+            "لا توجد تحليلات في هذه الجلسة بعد. ابدأ بتحليل عميل لعرض البيانات هنا."
+            if ar else
+            "No analyses have been completed in this session yet. Analyze a customer to populate the dashboard."
+        )
+        if st.button("ابدأ تحليل عميل" if ar else "Analyze a Customer", use_container_width=False):
+            st.session_state.page = "form"
+            st.rerun()
+    else:
+        count = len(history)
+        avg_risk = sum(x["churn_risk"] for x in history) / count
+        avg_priority = sum(x["retention_priority"] for x in history) / count
+        critical = sum(1 for x in history if x["priority_level"] == "Critical")
+
+        d1, d2, d3, d4 = st.columns(4)
+        d1.metric("التحليلات" if ar else "Analyses", count)
+        d2.metric("متوسط الخطر" if ar else "Avg. Churn Risk", f"{avg_risk:.1f}%")
+        d3.metric("متوسط الأولوية" if ar else "Avg. Priority", f"{avg_priority:.1f}")
+        d4.metric("حالات حرجة" if ar else "Critical Cases", critical)
+
+        dashboard_df = pd.DataFrame([
+            {
+                ("الخطر" if ar else "Churn Risk"): x["churn_risk"],
+                ("تأثير الأعمال" if ar else "Business Impact"): x["business_impact"],
+                ("الأولوية" if ar else "Retention Priority"): x["retention_priority"],
+                ("المستوى" if ar else "Priority Level"): translate_level(x["priority_level"]),
+            }
+            for x in history
+        ])
+
+        st.write("")
+        st.dataframe(dashboard_df, use_container_width=True, hide_index=True)
+
+        st.caption(
+            "هذه اللوحة تعرض تحليلات الجلسة الحالية فقط ولا تمثل قاعدة بيانات دائمة."
+            if ar else
+            "This dashboard currently reflects the active session only and is not persistent storage."
+        )
+
+
+# ============================================================
+# ABOUT PAGE
+# ============================================================
+
+elif st.session_state.page == "about":
+
+    ar = st.session_state.language == "العربية"
+
+    if ar:
+        about_title = "عن NAVIGATE"
+        about_copy = (
+            "NAVIGATE منصة لدعم قرارات الاحتفاظ بالعملاء. "
+            "تستخدم نموذج تعلم آلي لتقدير خطر فقدان العميل، ثم تجمع الخطر "
+            "مع تأثير العميل النسبي على الأعمال لتحديد أولوية الاحتفاظ."
+        )
+        how_title = "كيف يعمل؟"
+        how_items = [
+            "إدخال بيانات العميل الأساسية.",
+            "تقدير خطر فقدان العميل باستخدام النموذج.",
+            "حساب التأثير النسبي وأولوية الاحتفاظ.",
+            "عرض عوامل للمراجعة وإجراءات مقترحة.",
+            "إمكانية تحميل تقرير PDF لنتيجة التحليل."
+        ]
+        tech_title = "التقنيات"
+        limitation_title = "مهم"
+        limitation = (
+            "جودة النتائج تعتمد على بيانات التدريب والنموذج. "
+            "NAVIGATE يدعم القرار ولا يضمن سلوك العميل أو نتيجة أي إجراء احتفاظ."
+        )
+    else:
+        about_title = "About NAVIGATE"
+        about_copy = (
+            "NAVIGATE is a customer-retention decision-support platform. "
+            "It uses a machine-learning model to estimate churn risk and combines "
+            "that estimate with relative customer business impact to determine retention priority."
+        )
+        how_title = "How it works"
+        how_items = [
+            "Enter basic customer information.",
+            "Estimate churn risk using the trained model.",
+            "Calculate relative business impact and retention priority.",
+            "Review relevant factors and suggested actions.",
+            "Download a PDF report of the analysis."
+        ]
+        tech_title = "Technology"
+        limitation_title = "Important"
+        limitation = (
+            "Result quality depends on the training data and model. "
+            "NAVIGATE supports decision-making and does not guarantee customer behavior "
+            "or the outcome of any retention action."
+        )
+
+    render_html(f"""
+    <div class="glass-panel" style="margin-top:28px;">
+        <div class="page-kicker">NAVIGATE</div>
+        <div class="page-title">{about_title}</div>
+        <div class="page-copy" style="max-width:900px;">{about_copy}</div>
+
+        <div style="margin-top:32px;color:#79172b;font-weight:850;font-size:1.05rem;">
+            {how_title}
+        </div>
+        <div style="margin-top:14px;color:#835761;line-height:1.9;font-size:.82rem;">
+            {"<br>".join("• " + x for x in how_items)}
+        </div>
+
+        <div style="margin-top:30px;color:#79172b;font-weight:850;font-size:1.05rem;">
+            {tech_title}
+        </div>
+        <div style="margin-top:10px;color:#835761;font-size:.82rem;">
+            Python · scikit-learn · pandas · Streamlit
+        </div>
+
+        <div class="quick-card" style="margin-top:30px;">
+            <div class="quick-icon">ⓘ</div>
+            <div>
+                <div class="quick-title">{limitation_title}</div>
+                <div class="quick-copy">{limitation}</div>
+            </div>
+        </div>
+    </div>
+    """)
 
 
 # ============================================================
@@ -2020,13 +2034,21 @@ elif st.session_state.page == "results":
         "priority_level"
     ]
 
-    factor_action_pairs = result["factor_action_pairs"]
-    actions = result["actions"]
-    risk_explanation = result["risk_explanation"]
-    decision_title = result["decision_title"]
-    decision_text = result["decision_text"]
-    next_step = result["next_step"]
-    customer_inputs = result["customer_inputs"]
+    risk_factors = result[
+        "risk_factors"
+    ]
+
+    actions = result[
+        "actions"
+    ]
+
+    decision_title = result[
+        "decision_title"
+    ]
+
+    decision_text = result[
+        "decision_text"
+    ]
 
 
     render_html("""
@@ -2103,334 +2125,367 @@ elif st.session_state.page == "results":
 
     with result_col:
 
-        # ----------------------------------------------------
-        # TOP METRICS
-        # ----------------------------------------------------
+        c1, c2, c3 = st.columns(
+            3,
+            gap="medium"
+        )
 
-        c1, c2, c3 = st.columns(3, gap="medium")
 
+        # PRIORITY
         with c1:
-            badge = get_badge_class(priority_level)
+
+            badge = get_badge_class(
+                priority_level
+            )
+
             render_html(f"""
             <div class="metric-grid-card">
+
                 <div class="metric-top">
+
                     <div class="metric-heading">
-                        <div class="metric-icon">◎</div>
-                        <div class="metric-label">Retention Priority Score</div>
+
+                        <div class="metric-icon">
+                            ◎
+                        </div>
+
+                        <div class="metric-label">
+                            Retention Priority Score
+                        </div>
+
                     </div>
+
                     <span class="badge badge-{badge}">
                         {html.escape(priority_level)}
                     </span>
+
                 </div>
 
                 <div class="metric-value">
-                    {retention_priority:.0f}
-                    <span class="metric-unit">/ 100</span>
+
+                    {retention_priority:.2f}
+
+                    <span class="metric-unit">
+                        / 100
+                    </span>
+
                 </div>
 
                 <div class="progress-track">
-                    <div class="progress-fill"
-                         style="width:{retention_priority}%"></div>
+
+                    <div
+                        class="progress-fill"
+                        style="width:{retention_priority}%">
+                    </div>
+
                 </div>
 
                 <div class="metric-note">
-                    Indicates how strongly this customer should be prioritized
-                    for retention within this prototype.
+
+                    Indicates how strongly this customer
+                    should be prioritized for retention.
+
                 </div>
+
             </div>
             """)
 
+
+        # CHURN
         with c2:
-            badge = get_badge_class(risk_level)
+
+            badge = get_badge_class(
+                risk_level
+            )
+
             render_html(f"""
             <div class="metric-grid-card">
+
                 <div class="metric-top">
+
                     <div class="metric-heading">
-                        <div class="metric-icon">◇</div>
-                        <div class="metric-label">Estimated Churn Risk</div>
+
+                        <div class="metric-icon">
+                            ◇
+                        </div>
+
+                        <div class="metric-label">
+                            Estimated Churn Risk
+                        </div>
+
                     </div>
+
                     <span class="badge badge-{badge}">
                         {html.escape(risk_level)}
                     </span>
-                </div>
 
-                <div class="metric-value">{churn_risk:.0f}%</div>
-
-                <div class="progress-track">
-                    <div class="progress-fill"
-                         style="width:{churn_risk}%"></div>
-                </div>
-
-                <div class="metric-note">
-                    Model-estimated probability that this customer may leave.
-                </div>
-            </div>
-            """)
-
-        with c3:
-            render_html(f"""
-            <div class="metric-grid-card">
-                <div class="metric-top">
-                    <div class="metric-heading">
-                        <div class="metric-icon">◉</div>
-                        <div class="metric-label">Customer Business Impact</div>
-                    </div>
                 </div>
 
                 <div class="metric-value">
-                    {business_impact:.0f}
-                    <span class="metric-unit">/ 100</span>
+                    {churn_risk:.2f}%
                 </div>
 
                 <div class="progress-track">
-                    <div class="progress-fill"
-                         style="width:{business_impact}%"></div>
+
+                    <div
+                        class="progress-fill"
+                        style="width:{churn_risk}%">
+                    </div>
+
                 </div>
 
                 <div class="metric-note">
-                    Relative customer value based on monthly and total payments.
+
+                    Model-estimated likelihood of the
+                    customer leaving.
+
                 </div>
+
             </div>
             """)
 
-        # ----------------------------------------------------
-        # VISUAL ANALYSIS
-        # ----------------------------------------------------
 
-        render_html("""
-        <div style="margin-top:24px;">
-            <div class="page-kicker">Visual Analysis</div>
-            <div class="detail-title">Customer score overview</div>
-            <div class="detail-copy">
-                A focused visual summary of this customer's calculated scores.
-            </div>
-        </div>
-        """)
+        # IMPACT
+        with c3:
 
-        chart_labels = ["Churn Risk", "Business Impact", "Retention Priority"]
-        chart_values = [churn_risk, business_impact, retention_priority]
-        chart_bg = "#fffafb"
-        text_color = "#79172b"
-        muted_color = "#9b757d"
-        accent = "#b72243"
-        accent_mid = "#d65a75"
-        accent_soft = "#e9aeba"
-        grid_color = "#ead8dc"
-
-        # Main comparison — horizontal layout is easier to scan.
-        render_html("""
-        <div class="chart-card">
-            <div class="chart-title">Score Comparison</div>
-            <div class="chart-subtitle">
-                Compare churn risk, customer impact, and retention priority on one scale.
-            </div>
-        </div>
-        """)
-        fig, ax = plt.subplots(figsize=(9.5, 3.0))
-        fig.patch.set_facecolor(chart_bg)
-        ax.set_facecolor(chart_bg)
-        y = [2, 1, 0]
-        bars = ax.barh(y, chart_values, height=.46, color=[accent, accent_soft, "#8d1731"])
-        ax.set_yticks(y)
-        ax.set_yticklabels(chart_labels, color=text_color, fontsize=9, fontweight="bold")
-        ax.set_xlim(0, 100)
-        ax.set_xticks([0, 25, 50, 75, 100])
-        ax.tick_params(axis="x", colors=muted_color, labelsize=8, length=0)
-        ax.tick_params(axis="y", length=0, pad=10)
-        ax.xaxis.grid(True, color=grid_color, linewidth=.8, alpha=.65)
-        ax.set_axisbelow(True)
-        for bar, value in zip(bars, chart_values):
-            ax.text(min(value + 2, 96), bar.get_y()+bar.get_height()/2, f"{value:.0f}",
-                    va="center", ha="left", fontsize=9, fontweight="bold", color=text_color)
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        fig.tight_layout(pad=1.4)
-        st.pyplot(fig, use_container_width=True)
-        plt.close(fig)
-
-        chart_left, chart_right = st.columns(2, gap="medium")
-
-        with chart_left:
-            render_html("""
-            <div class="chart-card">
-                <div class="chart-title">Score Profile</div>
-                <div class="chart-subtitle">Connected view of the three analysis scores.</div>
-            </div>
-            """)
-            fig, ax = plt.subplots(figsize=(5.2, 3.2))
-            fig.patch.set_facecolor(chart_bg)
-            ax.set_facecolor(chart_bg)
-            x = [0, 1, 2]
-            ax.plot(x, chart_values, linewidth=2.7, color=accent, zorder=3)
-            ax.scatter(x, chart_values, s=58, color=[accent, accent_mid, "#8d1731"], zorder=4)
-            ax.fill_between(x, chart_values, 0, color=accent_soft, alpha=.12)
-            ax.set_xticks(x)
-            ax.set_xticklabels(["Churn", "Impact", "Priority"], color=text_color, fontsize=8)
-            ax.set_ylim(0, 105)
-            ax.set_yticks([0,25,50,75,100])
-            ax.tick_params(axis="both", colors=muted_color, labelsize=8, length=0)
-            ax.yaxis.grid(True, color=grid_color, linewidth=.8, alpha=.6)
-            ax.set_axisbelow(True)
-            for xi, value in zip(x, chart_values):
-                ax.text(xi, min(value+5, 101), f"{value:.0f}", ha="center", fontsize=8.5,
-                        fontweight="bold", color=text_color)
-            for spine in ax.spines.values():
-                spine.set_visible(False)
-            fig.tight_layout(pad=1.2)
-            st.pyplot(fig, use_container_width=True)
-            plt.close(fig)
-
-        with chart_right:
-            render_html("""
-            <div class="chart-card">
-                <div class="chart-title">Score Range Distribution</div>
-                <div class="chart-subtitle">Where this customer's three scores fall across score bands.</div>
-            </div>
-            """)
-            fig, ax = plt.subplots(figsize=(5.2, 3.2))
-            fig.patch.set_facecolor(chart_bg)
-            ax.set_facecolor(chart_bg)
-            bins = [0,20,40,60,80,100]
-            counts, edges, patches = ax.hist(chart_values, bins=bins, rwidth=.72, color=accent, alpha=.9)
-            ax.set_xlim(0,100)
-            ax.set_xticks([0,20,40,60,80,100])
-            ax.set_yticks(range(0, int(max(counts))+2))
-            ax.tick_params(axis="both", colors=muted_color, labelsize=8, length=0)
-            ax.yaxis.grid(True, color=grid_color, linewidth=.8, alpha=.6)
-            ax.set_axisbelow(True)
-            ax.set_xlabel("Score band", color=muted_color, fontsize=8)
-            for patch, count in zip(patches, counts):
-                if count:
-                    ax.text(patch.get_x()+patch.get_width()/2, count+.05, f"{int(count)}",
-                            ha="center", va="bottom", fontsize=8.5, fontweight="bold", color=text_color)
-            for spine in ax.spines.values():
-                spine.set_visible(False)
-            fig.tight_layout(pad=1.2)
-            st.pyplot(fig, use_container_width=True)
-            plt.close(fig)
-
-        # ----------------------------------------------------
-        # EXPANDABLE RESULT DETAILS
-        # ----------------------------------------------------
-
-        interpretation_result, interpretation_why, interpretation_action = (
-            get_result_interpretation(
-                risk_level,
-                churn_risk,
-                factor_action_pairs
-            )
-        )
-        interpretation_badge = get_badge_class(risk_level)
-
-        render_html("""
-        <div style="margin-top:26px;">
-            <div class="page-kicker">Analysis Details</div>
-            <div class="detail-title">Explore the customer analysis</div>
-            <div class="detail-copy">
-                Open a section only when you need more detail.
-            </div>
-        </div>
-        """)
-
-        with st.expander("Result Interpretation", expanded=False):
             render_html(f"""
-            <div style="padding:3px 2px 5px;">
-                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
-                    <span class="badge badge-{interpretation_badge}">
-                        {html.escape(interpretation_result)}
-                    </span>
-                </div>
+            <div class="metric-grid-card">
 
-                <div class="decision-label">Decision Summary</div>
-                <div class="decision-title" style="margin-top:6px;">
-                    {html.escape(decision_title)}
-                </div>
-                <div class="decision-text">{html.escape(decision_text)}</div>
+                <div class="metric-top">
 
-                <div style="margin-top:17px;">
-                    <div class="decision-label">Why this matters</div>
-                    <div class="decision-text" style="margin-top:6px;">
-                        {html.escape(interpretation_why)}
-                    </div>
-                </div>
+                    <div class="metric-heading">
 
-                <div style="margin-top:17px;padding:14px 16px;border-radius:14px;
-                            background:rgba(248,220,227,.55);
-                            border:1px solid rgba(225,182,191,.55);">
-                    <div class="decision-label">Suggested Action</div>
-                    <div class="decision-text" style="margin-top:6px;">
-                        {html.escape(interpretation_action)}
-                    </div>
-                </div>
-            </div>
-            """)
-
-        with st.expander("Customer Risk Signals", expanded=False):
-            render_html("""
-            <div class="detail-copy" style="margin-top:2px;">
-                Each signal is paired with a practical response. These are review
-                signals and do not prove that one characteristic caused the prediction.
-            </div>
-            """)
-
-            pair_html = ""
-            for index, (factor, context, action) in enumerate(factor_action_pairs, start=1):
-                pair_html += f"""
-                <div style="background:rgba(255,255,255,.66);
-                            border:1px solid rgba(225,182,191,.58);
-                            border-radius:16px;padding:16px 18px;margin-bottom:10px;">
-                    <div style="display:flex;align-items:flex-start;gap:12px;">
-                        <div class="action-number">{index:02d}</div>
-                        <div style="flex:1;">
-                            <div style="color:#79172b;font-size:.80rem;font-weight:850;margin-bottom:5px;">
-                                {html.escape(factor)}
-                            </div>
-                            <div style="color:#956f77;font-size:.69rem;line-height:1.55;margin-bottom:8px;">
-                                {html.escape(context)}
-                            </div>
-                            <div style="color:#7f4551;font-size:.71rem;line-height:1.55;">
-                                <strong>Recommended response:</strong> {html.escape(action)}
-                            </div>
+                        <div class="metric-icon">
+                            ◉
                         </div>
+
+                        <div class="metric-label">
+                            Customer Business Impact
+                        </div>
+
                     </div>
+
+                </div>
+
+                <div class="metric-value">
+
+                    {business_impact:.2f}
+
+                    <span class="metric-unit">
+                        / 100
+                    </span>
+
+                </div>
+
+                <div class="progress-track">
+
+                    <div
+                        class="progress-fill"
+                        style="width:{business_impact}%">
+                    </div>
+
+                </div>
+
+                <div class="metric-note">
+
+                    Relative customer value based on
+                    monthly and total payments.
+
+                </div>
+
+            </div>
+            """)
+
+
+        # ----------------------------------------------------
+        # DECISION
+        # ----------------------------------------------------
+
+        render_html(f"""
+        <div class="decision-card">
+
+            <div class="decision-head">
+
+                <div class="decision-icon">
+                    ◇
+                </div>
+
+                <div class="decision-label">
+                    Decision Summary
+                </div>
+
+            </div>
+
+            <div class="decision-title">
+                {html.escape(decision_title)}
+            </div>
+
+            <div class="decision-text">
+                {html.escape(decision_text)}
+            </div>
+
+        </div>
+        """)
+
+
+        st.write("")
+
+
+        factor_col, action_col = st.columns(
+            [1, 1.35],
+            gap="medium"
+        )
+
+
+        # ----------------------------------------------------
+        # FACTORS
+        # ----------------------------------------------------
+
+        with factor_col:
+
+            if risk_factors:
+
+                factor_html = ""
+
+                for factor in risk_factors:
+
+                    factor_html += f"""
+                    <div class="risk-item">
+
+                        <div class="risk-dot"></div>
+
+                        <div>
+                            {html.escape(factor)}
+                        </div>
+
+                    </div>
+                    """
+
+            else:
+
+                factor_html = """
+                <div class="risk-item">
+
+                    <div class="risk-dot"></div>
+
+                    <div>
+                        No major actionable customer
+                        signals identified
+                    </div>
+
                 </div>
                 """
-            render_html(pair_html)
 
-        with st.expander("Recommended Action Plan", expanded=False):
-            render_html("""
-            <div class="detail-copy" style="margin-top:2px;">
-                Actions are ordered by urgency and customer-specific relevance.
+
+            render_html(f"""
+            <div class="detail-card">
+
+                <div class="detail-header">
+
+                    <div class="detail-icon">
+                        ▣
+                    </div>
+
+                    <div class="detail-title">
+                        Factors to Review
+                    </div>
+
+                </div>
+
+                <div class="detail-copy">
+
+                    Customer characteristics that may
+                    be useful when reviewing retention risk.
+
+                </div>
+
+                {factor_html}
+
             </div>
             """)
+
+
+        # ----------------------------------------------------
+        # ACTIONS
+        # ----------------------------------------------------
+
+        with action_col:
 
             action_html = ""
-            for i, (label, action) in enumerate(actions, start=1):
+
+            for i, action in enumerate(
+                actions,
+                start=1
+            ):
+
                 action_html += f"""
                 <div class="action-item">
-                    <div class="action-number">{i:02d}</div>
+
+                    <div class="action-number">
+                        {i:02d}
+                    </div>
+
                     <div class="action-text">
-                        <div style="color:#a24a5b;font-size:.60rem;font-weight:850;
-                                    letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px;">
-                            {html.escape(label)}
-                        </div>
                         {html.escape(action)}
                     </div>
+
                 </div>
                 """
-            render_html(action_html)
 
-        # ----------------------------------------------------
-        # MODEL / PROTOTYPE NOTE
-        # ----------------------------------------------------
+
+            render_html(f"""
+            <div class="detail-card">
+
+                <div class="detail-header">
+
+                    <div class="detail-icon">
+                        ◎
+                    </div>
+
+                    <div class="detail-title">
+                        Suggested Actions
+                    </div>
+
+                </div>
+
+                <div class="detail-copy">
+
+                    Suggested actions based on the
+                    customer information entered.
+
+                </div>
+
+                {action_html}
+
+            </div>
+            """)
+
+
+
+        st.write("")
+
+        pdf_bytes = create_pdf_report(result)
+        st.download_button(
+            label=(
+                "↓ تحميل تقرير التحليل PDF"
+                if st.session_state.language == "العربية"
+                else "↓ Download Analysis Report (PDF)"
+            ),
+            data=pdf_bytes,
+            file_name="NAVIGATE_customer_retention_analysis.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            key="download_analysis_pdf"
+        )
 
         render_html("""
         <div class="note">
-            NAVIGATE is a decision-support prototype. Churn risk is a
-            model-estimated probability, not a guaranteed customer outcome.
-            Business impact and retention priority use project scoring
-            assumptions. Suggested actions are rule-based recommendations
-            derived from the customer information entered and should not be
-            interpreted as causal effects.
+
+            NAVIGATE is a decision-support prototype.
+            Scores are based on the trained model and project
+            scoring assumptions. Suggested actions are
+            rule-based recommendations and do not guarantee
+            a specific customer outcome.
+
         </div>
         """)
