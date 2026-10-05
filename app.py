@@ -1755,64 +1755,48 @@ if st.session_state.page == "home":
                 <div class="showcase-glow"></div>
 
                 <div class="showcase-card">
-                    <div class="showcase-shell risk-showcase">
-                        <div class="showcase-kicker">
-                            {"تحليل المخاطر" if st.session_state.language == "العربية" else "RISK INTELLIGENCE"}
-                        </div>
-
-                        <div class="risk-layout">
-                            <div class="risk-ring">
-                                <strong>72%</strong>
+                    <div class="showcase-shell risk-showcase"
+                         style="min-height:225px;display:flex;align-items:center;padding:34px;">
+                        <div>
+                            <div class="showcase-title" style="font-size:1.55rem;line-height:1.25;">
+                                {"اعرف أي العملاء يحتاجون اهتمامك." if st.session_state.language == "العربية" else
+                                 "Know who needs your attention."}
                             </div>
-
-                            <div class="risk-copy">
-                                <div class="showcase-title">
-                                    {"خطر فقدان العميل" if st.session_state.language == "العربية" else "Estimated Churn Risk"}
-                                </div>
-                                <div class="showcase-small">
-                                    {"تقدير احتمالية مغادرة العميل بناءً على النموذج." if st.session_state.language == "العربية" else
-                                     "Model-estimated customer churn risk for retention review."}
-                                </div>
+                            <div class="showcase-small" style="font-size:.78rem;margin-top:13px;max-width:290px;">
+                                {"حدّد العملاء الذين لديهم خطر أعلى لفقدانهم." if st.session_state.language == "العربية" else
+                                 "Identify customers with higher estimated churn risk."}
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="showcase-card">
-                    <div class="showcase-shell priority-showcase">
-                        <div class="showcase-kicker">
-                            {"أولوية الاحتفاظ" if st.session_state.language == "العربية" else "RETENTION PRIORITY"}
-                        </div>
-
-                        <div class="priority-number">
-                            78 <span>/ 100</span>
-                        </div>
-
-                        <div class="priority-scale">
-                            <div></div><div></div><div></div><div></div>
-                        </div>
-
-                        <div class="priority-chip">
-                            {"أولوية مرتفعة" if st.session_state.language == "العربية" else "HIGH PRIORITY"}
+                    <div class="showcase-shell priority-showcase"
+                         style="min-height:225px;display:flex;align-items:center;padding:34px;">
+                        <div>
+                            <div class="showcase-title" style="font-size:1.55rem;line-height:1.25;">
+                                {"ركّز على العملاء الأكثر أولوية." if st.session_state.language == "العربية" else
+                                 "Focus where it matters most."}
+                            </div>
+                            <div class="showcase-small" style="font-size:.78rem;margin-top:13px;max-width:290px;">
+                                {"رتّب أولوية الاحتفاظ بناءً على الخطر والقيمة النسبية للعميل." if st.session_state.language == "العربية" else
+                                 "Prioritize retention using risk and relative customer value."}
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <div class="showcase-card">
-                    <div class="showcase-shell impact-showcase">
-                        <div class="showcase-kicker">
-                            {"تأثير الأعمال" if st.session_state.language == "العربية" else "BUSINESS IMPACT"}
-                        </div>
-
-                        <div class="impact-layout">
+                    <div class="showcase-shell impact-showcase" style="min-height:225px;padding:32px 34px;">
+                        <div class="impact-layout" style="margin-top:0;align-items:center;">
                             <div>
-                                <div class="impact-value">84</div>
-                                <div class="showcase-title">
-                                    {"قيمة نسبية" if st.session_state.language == "العربية" else "Relative value"}
+                                <div class="showcase-title" style="font-size:1.45rem;line-height:1.25;">
+                                    {"شاهد الصورة بشكل أوضح." if st.session_state.language == "العربية" else
+                                     "See the bigger picture."}
                                 </div>
-                                <div class="showcase-small">
-                                    {"مؤشر يعتمد على بيانات الدفع." if st.session_state.language == "العربية" else
-                                     "A relative indicator based on customer payment data."}
+                                <div class="showcase-small" style="font-size:.76rem;margin-top:12px;">
+                                    {"حوّل بيانات العملاء إلى رؤية أسهل للمراجعة." if st.session_state.language == "العربية" else
+                                     "Turn customer data into a clearer view for review."}
                                 </div>
                             </div>
 
@@ -1828,29 +1812,17 @@ if st.session_state.page == "home":
                 </div>
 
                 <div class="showcase-card">
-                    <div class="showcase-shell action-showcase">
-                        <div class="showcase-kicker">
-                            {"الإجراء التالي" if st.session_state.language == "العربية" else "NEXT BEST ACTION"}
-                        </div>
-
-                        <div class="action-headline">
-                            <div class="action-symbol">◇</div>
-                            <div>
-                                <div class="showcase-title">
-                                    {"اقتراحات احتفاظ قابلة للمراجعة" if st.session_state.language == "العربية" else
-                                     "Reviewable retention actions"}
-                                </div>
-                                <div class="showcase-small">
-                                    {"إجراءات مقترحة حسب نتيجة التحليل." if st.session_state.language == "العربية" else
-                                     "Suggested next steps based on the customer analysis."}
-                                </div>
+                    <div class="showcase-shell action-showcase"
+                         style="min-height:225px;display:flex;align-items:center;padding:34px;">
+                        <div>
+                            <div class="showcase-title" style="font-size:1.55rem;line-height:1.25;">
+                                {"حوّل النتائج إلى خطوات واضحة." if st.session_state.language == "العربية" else
+                                 "Turn insight into action."}
                             </div>
-                        </div>
-
-                        <div class="action-lines">
-                            <div class="action-line"></div>
-                            <div class="action-line"></div>
-                            <div class="action-line"></div>
+                            <div class="showcase-small" style="font-size:.78rem;margin-top:13px;max-width:295px;">
+                                {"راجع الإجراءات المقترحة واتخذ قرارات احتفاظ أكثر وضوحًا." if st.session_state.language == "العربية" else
+                                 "Review suggested actions and make more informed retention decisions."}
+                            </div>
                         </div>
                     </div>
                 </div>
