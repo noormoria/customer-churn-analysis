@@ -580,6 +580,18 @@ div[data-testid="stToolbar"] {
     filter:blur(1px);
 }
 
+@keyframes floatOrbOne {
+    0%,100% { transform:translate3d(0,0,0) scale(1); }
+    35% { transform:translate3d(-18px,14px,0) scale(1.035); }
+    70% { transform:translate3d(12px,-12px,0) scale(.985); }
+}
+
+@keyframes floatOrbTwo {
+    0%,100% { transform:translate3d(0,0,0) scale(1); }
+    40% { transform:translate3d(20px,-16px,0) scale(.97); }
+    75% { transform:translate3d(-12px,12px,0) scale(1.04); }
+}
+
 .orb-one {
     width:330px;
     height:330px;
@@ -591,6 +603,7 @@ div[data-testid="stToolbar"] {
             rgba(255,255,255,.82),
             rgba(234,105,137,.28)
         );
+    animation:floatOrbOne 9s ease-in-out infinite;
 }
 
 .orb-two {
@@ -599,6 +612,7 @@ div[data-testid="stToolbar"] {
     right:190px;
     top:145px;
     background:rgba(240,133,157,.17);
+    animation:floatOrbTwo 11s ease-in-out infinite;
 }
 
 .visual-card {
@@ -1204,6 +1218,36 @@ div[data-testid="stAlert"] {
     margin-bottom:8px;
 }
 
+/* ---------- EXPANDABLE RESULT CARDS ---------- */
+
+div[data-testid="stExpander"] {
+    background:rgba(255,255,255,.72);
+    border:1px solid rgba(224,180,190,.62) !important;
+    border-radius:20px !important;
+    box-shadow:0 15px 42px rgba(118,29,49,.06);
+    overflow:hidden;
+    margin-top:14px;
+}
+
+div[data-testid="stExpander"] details {
+    border:none !important;
+}
+
+div[data-testid="stExpander"] summary {
+    padding:16px 19px !important;
+    color:#79172b !important;
+    font-weight:800 !important;
+    font-size:.82rem !important;
+}
+
+div[data-testid="stExpander"] summary:hover {
+    background:rgba(248,220,227,.32);
+}
+
+div[data-testid="stExpanderDetails"] {
+    padding:0 19px 18px !important;
+}
+
 /* ---------- MOBILE ---------- */
 
 @media(max-width:900px){
@@ -1449,7 +1493,9 @@ elif st.session_state.page == "form":
             "← Back to Home",
             use_container_width=True
         ):
+            # Going to Home starts a fresh customer analysis.
             st.session_state.page = "home"
+            st.session_state.analysis_result = None
             st.rerun()
 
 
@@ -2025,289 +2071,117 @@ elif st.session_state.page == "results":
         render_html("""
         <div style="margin-top:24px;">
             <div class="page-kicker">Visual Analysis</div>
-            <div class="detail-title">Customer score profile</div>
+            <div class="detail-title">Customer score overview</div>
             <div class="detail-copy">
-                Three complementary views of the scores produced for this customer.
-                These charts summarize this analysis only; they do not represent
-                the distribution of the full training dataset.
+                A focused visual summary of this customer's calculated scores.
             </div>
         </div>
         """)
 
         chart_labels = ["Churn Risk", "Business Impact", "Retention Priority"]
         chart_values = [churn_risk, business_impact, retention_priority]
-
-        # Shared visual styling
         chart_bg = "#fffafb"
         text_color = "#79172b"
         muted_color = "#9b757d"
         accent = "#b72243"
+        accent_mid = "#d65a75"
         accent_soft = "#e9aeba"
         grid_color = "#ead8dc"
 
-        # BAR CHART
+        # Main comparison — horizontal layout is easier to scan.
         render_html("""
         <div class="chart-card">
             <div class="chart-title">Score Comparison</div>
             <div class="chart-subtitle">
-                Side-by-side comparison of the three customer scores.
+                Compare churn risk, customer impact, and retention priority on one scale.
             </div>
         </div>
         """)
-
-        fig, ax = plt.subplots(figsize=(9, 3.6))
+        fig, ax = plt.subplots(figsize=(9.5, 3.0))
         fig.patch.set_facecolor(chart_bg)
         ax.set_facecolor(chart_bg)
-        bars = ax.bar(chart_labels, chart_values, width=0.55, color=[accent, accent_soft, "#8d1731"])
-        ax.set_ylim(0, 110)
-        ax.set_ylabel("Score / 100", color=muted_color, fontsize=9)
-        ax.tick_params(axis="x", colors=text_color, labelsize=9, length=0)
-        ax.tick_params(axis="y", colors=muted_color, labelsize=8, length=0)
-        ax.yaxis.grid(True, color=grid_color, linewidth=0.8, alpha=0.7)
+        y = [2, 1, 0]
+        bars = ax.barh(y, chart_values, height=.46, color=[accent, accent_soft, "#8d1731"])
+        ax.set_yticks(y)
+        ax.set_yticklabels(chart_labels, color=text_color, fontsize=9, fontweight="bold")
+        ax.set_xlim(0, 100)
+        ax.set_xticks([0, 25, 50, 75, 100])
+        ax.tick_params(axis="x", colors=muted_color, labelsize=8, length=0)
+        ax.tick_params(axis="y", length=0, pad=10)
+        ax.xaxis.grid(True, color=grid_color, linewidth=.8, alpha=.65)
         ax.set_axisbelow(True)
         for bar, value in zip(bars, chart_values):
-            ax.text(
-                bar.get_x() + bar.get_width()/2,
-                min(value + 3, 104),
-                f"{value:.0f}",
-                ha="center",
-                va="bottom",
-                fontsize=10,
-                fontweight="bold",
-                color=text_color
-            )
+            ax.text(min(value + 2, 96), bar.get_y()+bar.get_height()/2, f"{value:.0f}",
+                    va="center", ha="left", fontsize=9, fontweight="bold", color=text_color)
         for spine in ax.spines.values():
             spine.set_visible(False)
-        fig.tight_layout(pad=1.2)
+        fig.tight_layout(pad=1.4)
         st.pyplot(fig, use_container_width=True)
         plt.close(fig)
 
         chart_left, chart_right = st.columns(2, gap="medium")
 
-        # LINE CHART
         with chart_left:
             render_html("""
             <div class="chart-card">
                 <div class="chart-title">Score Profile</div>
-                <div class="chart-subtitle">
-                    A connected view of the customer's three analysis scores.
-                </div>
+                <div class="chart-subtitle">Connected view of the three analysis scores.</div>
             </div>
             """)
-            fig, ax = plt.subplots(figsize=(5.3, 3.5))
+            fig, ax = plt.subplots(figsize=(5.2, 3.2))
             fig.patch.set_facecolor(chart_bg)
             ax.set_facecolor(chart_bg)
-            x = list(range(len(chart_labels)))
-            ax.plot(x, chart_values, marker="o", linewidth=2.6, markersize=7, color=accent)
-            ax.fill_between(x, chart_values, [0, 0, 0], color=accent_soft, alpha=0.16)
+            x = [0, 1, 2]
+            ax.plot(x, chart_values, linewidth=2.7, color=accent, zorder=3)
+            ax.scatter(x, chart_values, s=58, color=[accent, accent_mid, "#8d1731"], zorder=4)
+            ax.fill_between(x, chart_values, 0, color=accent_soft, alpha=.12)
             ax.set_xticks(x)
             ax.set_xticklabels(["Churn", "Impact", "Priority"], color=text_color, fontsize=8)
-            ax.set_ylim(0, 110)
-            ax.tick_params(axis="y", colors=muted_color, labelsize=8, length=0)
-            ax.tick_params(axis="x", length=0)
-            ax.yaxis.grid(True, color=grid_color, linewidth=0.8, alpha=0.7)
+            ax.set_ylim(0, 105)
+            ax.set_yticks([0,25,50,75,100])
+            ax.tick_params(axis="both", colors=muted_color, labelsize=8, length=0)
+            ax.yaxis.grid(True, color=grid_color, linewidth=.8, alpha=.6)
             ax.set_axisbelow(True)
             for xi, value in zip(x, chart_values):
-                ax.text(xi, min(value + 5, 104), f"{value:.0f}", ha="center",
-                        fontsize=9, fontweight="bold", color=text_color)
+                ax.text(xi, min(value+5, 101), f"{value:.0f}", ha="center", fontsize=8.5,
+                        fontweight="bold", color=text_color)
             for spine in ax.spines.values():
                 spine.set_visible(False)
-            fig.tight_layout(pad=1.1)
+            fig.tight_layout(pad=1.2)
             st.pyplot(fig, use_container_width=True)
             plt.close(fig)
 
-        # HISTOGRAM
         with chart_right:
             render_html("""
             <div class="chart-card">
-                <div class="chart-title">Score Distribution</div>
-                <div class="chart-subtitle">
-                    Distribution of this customer's three calculated scores.
-                </div>
+                <div class="chart-title">Score Range Distribution</div>
+                <div class="chart-subtitle">Where this customer's three scores fall across score bands.</div>
             </div>
             """)
-            fig, ax = plt.subplots(figsize=(5.3, 3.5))
+            fig, ax = plt.subplots(figsize=(5.2, 3.2))
             fig.patch.set_facecolor(chart_bg)
             ax.set_facecolor(chart_bg)
-            bins = [0, 20, 40, 60, 80, 100]
-            ax.hist(chart_values, bins=bins, color=accent, alpha=0.88, rwidth=0.82)
-            ax.set_xlim(0, 100)
-            ax.set_xlabel("Score range", color=muted_color, fontsize=8)
-            ax.set_ylabel("Number of scores", color=muted_color, fontsize=8)
+            bins = [0,20,40,60,80,100]
+            counts, edges, patches = ax.hist(chart_values, bins=bins, rwidth=.72, color=accent, alpha=.9)
+            ax.set_xlim(0,100)
+            ax.set_xticks([0,20,40,60,80,100])
+            ax.set_yticks(range(0, int(max(counts))+2))
             ax.tick_params(axis="both", colors=muted_color, labelsize=8, length=0)
-            ax.yaxis.grid(True, color=grid_color, linewidth=0.8, alpha=0.7)
+            ax.yaxis.grid(True, color=grid_color, linewidth=.8, alpha=.6)
             ax.set_axisbelow(True)
+            ax.set_xlabel("Score band", color=muted_color, fontsize=8)
+            for patch, count in zip(patches, counts):
+                if count:
+                    ax.text(patch.get_x()+patch.get_width()/2, count+.05, f"{int(count)}",
+                            ha="center", va="bottom", fontsize=8.5, fontweight="bold", color=text_color)
             for spine in ax.spines.values():
                 spine.set_visible(False)
-            fig.tight_layout(pad=1.1)
+            fig.tight_layout(pad=1.2)
             st.pyplot(fig, use_container_width=True)
             plt.close(fig)
 
         # ----------------------------------------------------
-        # WHY THIS RESULT IS IMPORTANT
-        # ----------------------------------------------------
-
-        risk_badge = get_badge_class(risk_level)
-
-        render_html(f"""
-        <div class="decision-card">
-            <div class="decision-head">
-                <div class="decision-icon">!</div>
-                <div>
-                    <div class="decision-label">What this result means</div>
-                    <div class="decision-title">
-                        <span class="badge badge-{risk_badge}">
-                            {html.escape(risk_level)} Risk
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            <div class="decision-text" style="margin-top:13px;">
-                {html.escape(risk_explanation)}
-            </div>
-        </div>
-        """)
-
-        # ----------------------------------------------------
-        # DECISION SUMMARY
-        # ----------------------------------------------------
-
-        render_html(f"""
-        <div class="decision-card">
-            <div class="decision-head">
-                <div class="decision-icon">◇</div>
-                <div class="decision-label">Decision Summary</div>
-            </div>
-
-            <div class="decision-title">
-                {html.escape(decision_title)}
-            </div>
-
-            <div class="decision-text">
-                {html.escape(decision_text)}
-            </div>
-        </div>
-        """)
-
-        # ----------------------------------------------------
-        # FACTOR -> ACTION CONNECTIONS
-        # ----------------------------------------------------
-
-        render_html("""
-        <div style="margin-top:25px;">
-            <div class="page-kicker">Customer Signals</div>
-            <div class="detail-title">Why this customer needs this response</div>
-            <div class="detail-copy">
-                Each signal below is paired with a practical action.
-                These signals support review and do not prove that a single
-                characteristic caused the model prediction.
-            </div>
-        </div>
-        """)
-
-        pair_html = ""
-
-        for index, (factor, context, action) in enumerate(
-            factor_action_pairs,
-            start=1
-        ):
-            pair_html += f"""
-            <div style="
-                background:rgba(255,255,255,.75);
-                border:1px solid rgba(225,182,191,.62);
-                border-radius:18px;
-                padding:18px 20px;
-                margin-bottom:12px;
-            ">
-                <div style="
-                    display:flex;
-                    align-items:flex-start;
-                    gap:12px;
-                ">
-                    <div class="action-number">{index:02d}</div>
-
-                    <div style="flex:1;">
-                        <div style="
-                            color:#79172b;
-                            font-size:.82rem;
-                            font-weight:850;
-                            margin-bottom:5px;
-                        ">
-                            {html.escape(factor)}
-                        </div>
-
-                        <div style="
-                            color:#956f77;
-                            font-size:.69rem;
-                            line-height:1.55;
-                            margin-bottom:9px;
-                        ">
-                            {html.escape(context)}
-                        </div>
-
-                        <div style="
-                            color:#7f4551;
-                            font-size:.72rem;
-                            line-height:1.55;
-                        ">
-                            <strong>Recommended response:</strong>
-                            {html.escape(action)}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            """
-
-        render_html(pair_html)
-
-        # ----------------------------------------------------
-        # ORDERED ACTION PLAN
-        # ----------------------------------------------------
-
-        action_html = ""
-
-        for i, (label, action) in enumerate(actions, start=1):
-            action_html += f"""
-            <div class="action-item">
-                <div class="action-number">{i:02d}</div>
-
-                <div class="action-text">
-                    <div style="
-                        color:#a24a5b;
-                        font-size:.60rem;
-                        font-weight:850;
-                        letter-spacing:.08em;
-                        text-transform:uppercase;
-                        margin-bottom:3px;
-                    ">
-                        {html.escape(label)}
-                    </div>
-
-                    {html.escape(action)}
-                </div>
-            </div>
-            """
-
-        render_html(f"""
-        <div class="detail-card" style="margin-top:24px; min-height:0;">
-            <div class="detail-header">
-                <div class="detail-icon">◎</div>
-                <div class="detail-title">Recommended Action Plan</div>
-            </div>
-
-            <div class="detail-copy">
-                Actions are ordered to make the recommended response easier
-                to follow. Customer-specific actions are based on the
-                information entered in this analysis.
-            </div>
-
-            {action_html}
-        </div>
-        """)
-
-        # ----------------------------------------------------
-        # RESULT INTERPRETATION
+        # EXPANDABLE RESULT DETAILS
         # ----------------------------------------------------
 
         interpretation_result, interpretation_why, interpretation_action = (
@@ -2317,60 +2191,105 @@ elif st.session_state.page == "results":
                 factor_action_pairs
             )
         )
-
         interpretation_badge = get_badge_class(risk_level)
 
-        render_html(f"""
-        <div class="decision-card">
-            <div class="decision-head">
-                <div class="decision-icon">◎</div>
-                <div>
-                    <div class="decision-label">Result Interpretation</div>
-                    <div class="decision-title">
-                        <span class="badge badge-{interpretation_badge}">
-                            {html.escape(interpretation_result)}
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            <div style="margin-top:17px;">
-                <div style="
-                    color:#7c1a2e;
-                    font-size:.68rem;
-                    font-weight:850;
-                    text-transform:uppercase;
-                    letter-spacing:.08em;
-                    margin-bottom:5px;
-                ">Why this matters</div>
-
-                <div class="decision-text" style="margin-top:0;">
-                    {html.escape(interpretation_why)}
-                </div>
-            </div>
-
-            <div style="
-                margin-top:15px;
-                padding:14px 16px;
-                border-radius:14px;
-                background:rgba(248,220,227,.55);
-                border:1px solid rgba(225,182,191,.55);
-            ">
-                <div style="
-                    color:#7c1a2e;
-                    font-size:.68rem;
-                    font-weight:850;
-                    text-transform:uppercase;
-                    letter-spacing:.08em;
-                    margin-bottom:5px;
-                ">Suggested Action</div>
-
-                <div class="decision-text" style="margin-top:0;">
-                    {html.escape(interpretation_action)}
-                </div>
+        render_html("""
+        <div style="margin-top:26px;">
+            <div class="page-kicker">Analysis Details</div>
+            <div class="detail-title">Explore the customer analysis</div>
+            <div class="detail-copy">
+                Open a section only when you need more detail.
             </div>
         </div>
         """)
+
+        with st.expander("Result Interpretation", expanded=False):
+            render_html(f"""
+            <div style="padding:3px 2px 5px;">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                    <span class="badge badge-{interpretation_badge}">
+                        {html.escape(interpretation_result)}
+                    </span>
+                </div>
+
+                <div class="decision-label">Decision Summary</div>
+                <div class="decision-title" style="margin-top:6px;">
+                    {html.escape(decision_title)}
+                </div>
+                <div class="decision-text">{html.escape(decision_text)}</div>
+
+                <div style="margin-top:17px;">
+                    <div class="decision-label">Why this matters</div>
+                    <div class="decision-text" style="margin-top:6px;">
+                        {html.escape(interpretation_why)}
+                    </div>
+                </div>
+
+                <div style="margin-top:17px;padding:14px 16px;border-radius:14px;
+                            background:rgba(248,220,227,.55);
+                            border:1px solid rgba(225,182,191,.55);">
+                    <div class="decision-label">Suggested Action</div>
+                    <div class="decision-text" style="margin-top:6px;">
+                        {html.escape(interpretation_action)}
+                    </div>
+                </div>
+            </div>
+            """)
+
+        with st.expander("Customer Risk Signals", expanded=False):
+            render_html("""
+            <div class="detail-copy" style="margin-top:2px;">
+                Each signal is paired with a practical response. These are review
+                signals and do not prove that one characteristic caused the prediction.
+            </div>
+            """)
+
+            pair_html = ""
+            for index, (factor, context, action) in enumerate(factor_action_pairs, start=1):
+                pair_html += f"""
+                <div style="background:rgba(255,255,255,.66);
+                            border:1px solid rgba(225,182,191,.58);
+                            border-radius:16px;padding:16px 18px;margin-bottom:10px;">
+                    <div style="display:flex;align-items:flex-start;gap:12px;">
+                        <div class="action-number">{index:02d}</div>
+                        <div style="flex:1;">
+                            <div style="color:#79172b;font-size:.80rem;font-weight:850;margin-bottom:5px;">
+                                {html.escape(factor)}
+                            </div>
+                            <div style="color:#956f77;font-size:.69rem;line-height:1.55;margin-bottom:8px;">
+                                {html.escape(context)}
+                            </div>
+                            <div style="color:#7f4551;font-size:.71rem;line-height:1.55;">
+                                <strong>Recommended response:</strong> {html.escape(action)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                """
+            render_html(pair_html)
+
+        with st.expander("Recommended Action Plan", expanded=False):
+            render_html("""
+            <div class="detail-copy" style="margin-top:2px;">
+                Actions are ordered by urgency and customer-specific relevance.
+            </div>
+            """)
+
+            action_html = ""
+            for i, (label, action) in enumerate(actions, start=1):
+                action_html += f"""
+                <div class="action-item">
+                    <div class="action-number">{i:02d}</div>
+                    <div class="action-text">
+                        <div style="color:#a24a5b;font-size:.60rem;font-weight:850;
+                                    letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px;">
+                            {html.escape(label)}
+                        </div>
+                        {html.escape(action)}
+                    </div>
+                </div>
+                """
+            render_html(action_html)
 
         # ----------------------------------------------------
         # MODEL / PROTOTYPE NOTE
