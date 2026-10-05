@@ -1283,9 +1283,138 @@ div[data-testid="stExpanderDetails"] {
     }
 }
 
+
+/* ---------- FLOATING ANALYTICS BACKGROUND ---------- */
+
+.block-container {
+    position:relative;
+    z-index:2;
+}
+
+.analytics-bg {
+    position:fixed;
+    inset:0;
+    overflow:hidden;
+    pointer-events:none;
+    z-index:1;
+}
+
+.analytics-symbol {
+    position:absolute;
+    width:34px;
+    height:34px;
+    color:#9e2944;
+    opacity:.075;
+    filter:blur(.15px);
+    will-change:transform;
+}
+
+.analytics-symbol svg {
+    width:100%;
+    height:100%;
+    display:block;
+    fill:none;
+    stroke:currentColor;
+    stroke-width:1.5;
+    stroke-linecap:round;
+    stroke-linejoin:round;
+}
+
+.analytics-symbol.s1 { left:4%; top:18%; width:28px; height:28px; animation:bgFloatA 18s ease-in-out infinite; }
+.analytics-symbol.s2 { left:11%; top:70%; width:42px; height:42px; opacity:.055; animation:bgFloatB 23s ease-in-out infinite; }
+.analytics-symbol.s3 { left:28%; top:9%; width:31px; height:31px; animation:bgFloatC 20s ease-in-out infinite; }
+.analytics-symbol.s4 { left:45%; top:78%; width:36px; height:36px; opacity:.06; animation:bgFloatA 25s ease-in-out infinite reverse; }
+.analytics-symbol.s5 { right:31%; top:19%; width:27px; height:27px; opacity:.06; animation:bgFloatB 21s ease-in-out infinite; }
+.analytics-symbol.s6 { right:18%; top:65%; width:40px; height:40px; opacity:.05; animation:bgFloatC 26s ease-in-out infinite; }
+.analytics-symbol.s7 { right:5%; top:31%; width:32px; height:32px; animation:bgFloatA 22s ease-in-out infinite; }
+.analytics-symbol.s8 { right:8%; bottom:7%; width:25px; height:25px; opacity:.055; animation:bgFloatB 19s ease-in-out infinite reverse; }
+.analytics-symbol.s9 { left:20%; bottom:5%; width:30px; height:30px; opacity:.05; animation:bgFloatC 24s ease-in-out infinite reverse; }
+.analytics-symbol.s10 { left:58%; top:7%; width:24px; height:24px; opacity:.05; animation:bgFloatA 20s ease-in-out infinite reverse; }
+
+@keyframes bgFloatA {
+    0%,100% { transform:translate3d(0,0,0) rotate(0deg); }
+    35% { transform:translate3d(12px,-16px,0) rotate(5deg); }
+    70% { transform:translate3d(-8px,10px,0) rotate(-4deg); }
+}
+
+@keyframes bgFloatB {
+    0%,100% { transform:translate3d(0,0,0) rotate(0deg); }
+    40% { transform:translate3d(-15px,-9px,0) rotate(-6deg); }
+    75% { transform:translate3d(10px,14px,0) rotate(4deg); }
+}
+
+@keyframes bgFloatC {
+    0%,100% { transform:translate3d(0,0,0) scale(1); }
+    50% { transform:translate3d(7px,-18px,0) scale(1.06); }
+}
+
+@media(max-width:900px) {
+    .analytics-symbol { opacity:.045; }
+    .analytics-symbol.s3,
+    .analytics-symbol.s5,
+    .analytics-symbol.s9 { display:none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .analytics-symbol,
+    .orb-one,
+    .orb-two { animation:none !important; }
+}
+
 </style>
 """)
 
+
+
+# ============================================================
+# SUBTLE FLOATING ANALYTICS BACKGROUND
+# ============================================================
+
+render_html("""
+<div class="analytics-bg" aria-hidden="true">
+
+    <div class="analytics-symbol s1">
+        <svg viewBox="0 0 32 32"><path d="M5 26V16M12 26V10M19 26V19M26 26V6"/><path d="M3 27.5H29"/></svg>
+    </div>
+
+    <div class="analytics-symbol s2">
+        <svg viewBox="0 0 32 32"><path d="M4 24L10 18L15 20L22 11L28 7"/><circle cx="4" cy="24" r="1.5"/><circle cx="10" cy="18" r="1.5"/><circle cx="15" cy="20" r="1.5"/><circle cx="22" cy="11" r="1.5"/><circle cx="28" cy="7" r="1.5"/></svg>
+    </div>
+
+    <div class="analytics-symbol s3">
+        <svg viewBox="0 0 32 32"><ellipse cx="16" cy="8" rx="10" ry="4"/><path d="M6 8V16C6 18.2 10.5 20 16 20S26 18.2 26 16V8M6 16V24C6 26.2 10.5 28 16 28S26 26.2 26 24V16"/></svg>
+    </div>
+
+    <div class="analytics-symbol s4">
+        <svg viewBox="0 0 32 32"><circle cx="16" cy="16" r="11"/><circle cx="16" cy="16" r="6"/><circle cx="16" cy="16" r="1.5"/><path d="M24 8L28 4M24 4H28V8"/></svg>
+    </div>
+
+    <div class="analytics-symbol s5">
+        <svg viewBox="0 0 32 32"><circle cx="16" cy="11" r="5"/><path d="M7 27C8 21 11 18 16 18S24 21 25 27"/></svg>
+    </div>
+
+    <div class="analytics-symbol s6">
+        <svg viewBox="0 0 32 32"><circle cx="7" cy="16" r="2.5"/><circle cx="16" cy="7" r="2.5"/><circle cx="25" cy="14" r="2.5"/><circle cx="20" cy="25" r="2.5"/><path d="M9 14L14 9M18.5 8L23 12M24 16.5L21 22.5M18 24L9 17"/></svg>
+    </div>
+
+    <div class="analytics-symbol s7">
+        <svg viewBox="0 0 32 32"><path d="M5 25V18H10V25M13 25V12H18V25M21 25V7H26V25"/><path d="M4 27H28"/></svg>
+    </div>
+
+    <div class="analytics-symbol s8">
+        <svg viewBox="0 0 32 32"><path d="M6 24L13 17L18 20L27 9"/><path d="M21 9H27V15"/></svg>
+    </div>
+
+    <div class="analytics-symbol s9">
+        <svg viewBox="0 0 32 32"><rect x="5" y="5" width="8" height="8" rx="2"/><rect x="19" y="5" width="8" height="8" rx="2"/><rect x="5" y="19" width="8" height="8" rx="2"/><rect x="19" y="19" width="8" height="8" rx="2"/></svg>
+    </div>
+
+    <div class="analytics-symbol s10">
+        <svg viewBox="0 0 32 32"><path d="M6 23C10 18 12 12 16 12C20 12 21 18 26 7"/><circle cx="6" cy="23" r="1.5"/><circle cx="16" cy="12" r="1.5"/><circle cx="26" cy="7" r="1.5"/></svg>
+    </div>
+
+</div>
+""")
 
 # ============================================================
 # TOP BAR
