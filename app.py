@@ -2193,3 +2193,5 @@ elif st.session_state.page == "results":
         </div>
         """)
 
+matplotlib
+
