@@ -1304,7 +1304,7 @@ div[data-testid="stExpanderDetails"] {
     width:40px;
     height:40px;
     color:#8d1731;
-    opacity:.13;
+    opacity:.22;
     filter:blur(.15px);
     will-change:transform;
 }
@@ -1321,15 +1321,15 @@ div[data-testid="stExpanderDetails"] {
 }
 
 .analytics-symbol.s1 { left:4%; top:18%; width:28px; height:28px; animation:bgFloatA 18s ease-in-out infinite; }
-.analytics-symbol.s2 { left:11%; top:70%; width:42px; height:42px; opacity:.10; animation:bgFloatB 23s ease-in-out infinite; }
+.analytics-symbol.s2 { left:11%; top:70%; width:42px; height:42px; opacity:.19; animation:bgFloatB 23s ease-in-out infinite; }
 .analytics-symbol.s3 { left:28%; top:9%; width:31px; height:31px; animation:bgFloatC 20s ease-in-out infinite; }
-.analytics-symbol.s4 { left:45%; top:78%; width:36px; height:36px; opacity:.105; animation:bgFloatA 25s ease-in-out infinite reverse; }
-.analytics-symbol.s5 { right:31%; top:19%; width:27px; height:27px; opacity:.105; animation:bgFloatB 21s ease-in-out infinite; }
-.analytics-symbol.s6 { right:18%; top:65%; width:40px; height:40px; opacity:.095; animation:bgFloatC 26s ease-in-out infinite; }
+.analytics-symbol.s4 { left:45%; top:78%; width:36px; height:36px; opacity:.20; animation:bgFloatA 25s ease-in-out infinite reverse; }
+.analytics-symbol.s5 { right:31%; top:19%; width:27px; height:27px; opacity:.20; animation:bgFloatB 21s ease-in-out infinite; }
+.analytics-symbol.s6 { right:18%; top:65%; width:40px; height:40px; opacity:.18; animation:bgFloatC 26s ease-in-out infinite; }
 .analytics-symbol.s7 { right:5%; top:31%; width:32px; height:32px; animation:bgFloatA 22s ease-in-out infinite; }
-.analytics-symbol.s8 { right:8%; bottom:7%; width:25px; height:25px; opacity:.10; animation:bgFloatB 19s ease-in-out infinite reverse; }
-.analytics-symbol.s9 { left:20%; bottom:5%; width:30px; height:30px; opacity:.09; animation:bgFloatC 24s ease-in-out infinite reverse; }
-.analytics-symbol.s10 { left:58%; top:7%; width:24px; height:24px; opacity:.095; animation:bgFloatA 20s ease-in-out infinite reverse; }
+.analytics-symbol.s8 { right:8%; bottom:7%; width:25px; height:25px; opacity:.19; animation:bgFloatB 19s ease-in-out infinite reverse; }
+.analytics-symbol.s9 { left:20%; bottom:5%; width:30px; height:30px; opacity:.17; animation:bgFloatC 24s ease-in-out infinite reverse; }
+.analytics-symbol.s10 { left:58%; top:7%; width:24px; height:24px; opacity:.18; animation:bgFloatA 20s ease-in-out infinite reverse; }
 
 @keyframes bgFloatA {
     0%,100% { transform:translate3d(0,0,0) rotate(0deg); }
@@ -1349,7 +1349,7 @@ div[data-testid="stExpanderDetails"] {
 }
 
 @media(max-width:900px) {
-    .analytics-symbol { opacity:.075; }
+    .analytics-symbol { opacity:.14; }
     .analytics-symbol.s3,
     .analytics-symbol.s5,
     .analytics-symbol.s9 { display:none; }
